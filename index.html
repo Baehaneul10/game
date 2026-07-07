@@ -1357,6 +1357,18 @@ function loop(now){
 }
 requestAnimationFrame(loop);
 
+// 호스트 탭이 백그라운드로 가도 멀티 게임이 멈추지 않도록 보조 틱
+// (브라우저가 백그라운드 타이머를 1Hz로 제한해도 느리게나마 진행 + 스냅샷 유지)
+setInterval(()=>{
+  if(!document.hidden || screenName!=='game') return;
+  if(net.mode!=='host' || Object.keys(net.conns).length===0) return;
+  const now=performance.now();
+  let dt=(now-lastT)/1000; lastT=now;
+  dt=Math.min(dt,.2)*window.__ts;
+  lastDt=dt;
+  updateSim(dt);
+},100);
+
 // 디버그 훅
 window.NPD={get world(){return world;},net,cState,initWorld,doPlace,doUpgrade,requestWaveStart,TDEFS,EDEFS,placeable,pointAt,PATHLEN};
 </script>
