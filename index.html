@@ -144,6 +144,20 @@
   .shopCard button:disabled { background:#26314e; color:#6b7899; }
   .shopCard button.owned { background:#1d3a31; color:#52d273; }
 
+  /* 기록·저장 */
+  #statGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:min(420px,92vw); margin:8px 0; }
+  .statBox { background:var(--panel); border:1px solid #2c3a5e; border-radius:10px; padding:10px 6px; text-align:center; }
+  .statBox .v { font-size:18px; font-weight:900; color:var(--acc); }
+  .statBox .l { font-size:11px; color:var(--dim); margin-top:2px; }
+  #histList { width:min(420px,92vw); max-height:20vh; overflow-y:auto; margin:6px 0; }
+  .histRow { display:flex; justify-content:space-between; gap:8px; background:var(--panel); border-radius:8px;
+    padding:7px 12px; margin:4px 0; font-size:12.5px; }
+  .histRow .win { color:var(--acc); font-weight:700; }
+  .histRow .lose { color:var(--red); font-weight:700; }
+  textarea.savecode { width:min(420px,92vw); height:52px; padding:9px; margin:4px 0;
+    background:#0e1424; border:1px solid #2c3a5e; border-radius:10px; color:#8b97b3;
+    font-size:11px; font-family:monospace; resize:none; }
+
   /* 맵 에디터 */
   #scr-edit { justify-content:flex-start; }
   #etoolbar { width:100%; display:flex; gap:6px; padding:8px 10px; background:var(--panel);
@@ -168,9 +182,10 @@
   <button class="btn" id="btnHost">📡 방 만들기 (친구 초대)</button>
   <input class="code" id="inCode" maxlength="4" placeholder="초대 코드 입력" autocomplete="off">
   <button class="btn" id="btnJoin">🚪 코드로 참가</button>
-  <div style="display:flex;gap:2px;justify-content:center">
+  <div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap">
     <button class="btn small" id="btnShop">🛒 상점</button>
     <button class="btn small" id="btnEdit">🗺️ 맵 에디터</button>
+    <button class="btn small" id="btnSave">📜 기록·저장</button>
     <button class="btn small" id="btnMute0">🔊</button>
   </div>
   <div class="netmsg" id="startMsg"></div>
@@ -183,6 +198,22 @@
   <div class="gembar">보유 💎 <b id="gemBal2">0</b></div>
   <div id="shopList"></div>
   <button class="btn small" id="btnShopBack">← 돌아가기</button>
+</div>
+
+<!-- 기록·저장 -->
+<div id="scr-save" class="screen">
+  <h1 class="logo" style="font-size:26px">📜 기록 · 저장</h1>
+  <div id="statGrid"></div>
+  <div id="histList"></div>
+  <div class="sub" style="margin:6px 0 0">💾 저장코드 — 복사해두면 다른 기기·브라우저에서 이어할 수 있어요</div>
+  <textarea class="savecode" id="saveCode" readonly></textarea>
+  <div style="display:flex;gap:4px">
+    <button class="btn small" id="btnCopySave">📋 코드 복사</button>
+    <button class="btn small" id="btnSaveBack">← 돌아가기</button>
+  </div>
+  <textarea class="savecode" id="loadCode" placeholder="여기에 저장코드를 붙여넣고 아래 버튼을 누르세요"></textarea>
+  <button class="btn small" id="btnLoadSave">⬇ 불러오기 (현재 데이터를 덮어씁니다)</button>
+  <div class="netmsg" id="saveMsg"></div>
 </div>
 
 <!-- 맵 에디터 -->
@@ -269,6 +300,7 @@ setPath(DEFAULT_PATH);
 function loadMaps(){ try{ return JSON.parse(localStorage.getItem('npd_maps')||'[]'); }catch(e){ return []; } }
 function saveMaps(ms){ try{ localStorage.setItem('npd_maps',JSON.stringify(ms)); }catch(e){} }
 let selectedMap=null; // null = 기본 맵, 아니면 경로 배열
+let selectedMapName='기본 맵';
 function pointAt(d){
   d=clamp(d,0,PATHLEN);
   for(let i=0;i<SEGLEN.length;i++){
@@ -317,19 +349,62 @@ const SHOP_ITEMS=[
   {id:'startMoney', kind:'perk', price:150, name:'퍽: 시작 자금 +100', desc:'매 게임 시작 돈이 100 증가 (본인에게 적용)'},
   {id:'baseHp',     kind:'perk', price:100, name:'퍽: 기지 체력 +25', desc:'기지 체력 100→125 (솔로/방장 게임에 적용, 전원 공유)'},
 ];
-const meta={gems:0, owned:{}};
+const meta={gems:0, owned:{}, stats:{g:0,p:0,w:0,ge:0}, hist:[]};
 function metaLoad(){
   try{ const m=JSON.parse(localStorage.getItem('npd_meta')||'{}');
-    meta.gems=m.gems|0; meta.owned=m.owned||{}; }catch(e){}
+    meta.gems=m.gems|0; meta.owned=m.owned||{};
+    meta.stats=Object.assign({g:0,p:0,w:0,ge:0},m.stats);
+    meta.hist=Array.isArray(m.hist)?m.hist:[];
+  }catch(e){}
 }
 function metaSave(){ try{ localStorage.setItem('npd_meta',JSON.stringify(meta)); }catch(e){} }
 function hasT(k){ return !TDEFS[k].lock || meta.owned[k]; }
 let sessionGems=0;
 function awardGems(n){
   if(n<=0) return;
-  meta.gems+=n; sessionGems+=n; metaSave();
+  meta.gems+=n; sessionGems+=n; meta.stats.ge+=n; metaSave();
 }
 function gemsForWave(w){ return 2+(w%10===0?5:0); }
+// 게임 1판 = 기록 1줄 (승리 후 무한 모드로 이어져도 중복 기록 없음)
+let sessionRecorded=false;
+function gameModeLabel(){
+  if(net.mode==='solo') return selectedMapName;
+  if(net.mode==='host') return net.np+'인 멀티';
+  return net.np+'인 참가';
+}
+function recordGame(result,wave,pops){
+  if(sessionRecorded) return;
+  sessionRecorded=true;
+  meta.stats.g++; meta.stats.p+=pops;
+  const d=new Date();
+  meta.hist.unshift({d:(d.getMonth()+1)+'/'+d.getDate(),w:wave,p:pops,r:result,m:gameModeLabel()});
+  meta.hist=meta.hist.slice(0,15);
+  metaSave();
+}
+// 저장코드 (프로필 내보내기/불러오기)
+function exportSave(){
+  const json=JSON.stringify({meta,best:loadBest(),maps:loadMaps()});
+  const b=btoa(unescape(encodeURIComponent(json)));
+  let h=0; for(let i=0;i<b.length;i++) h=(h*31+b.charCodeAt(i))%(1<<30);
+  return 'NPD1.'+h.toString(36)+'.'+b;
+}
+function importSave(code){
+  try{
+    const m=code.trim().match(/^NPD1\.([a-z0-9]+)\.([A-Za-z0-9+/=]+)$/);
+    if(!m) return '저장코드 형식이 올바르지 않습니다';
+    let h=0; for(let i=0;i<m[2].length;i++) h=(h*31+m[2].charCodeAt(i))%(1<<30);
+    if(h.toString(36)!==m[1]) return '코드가 손상되었습니다 — 전체를 정확히 복사했는지 확인하세요';
+    const data=JSON.parse(decodeURIComponent(escape(atob(m[2]))));
+    if(!data.meta) return '데이터가 비어 있습니다';
+    meta.gems=data.meta.gems|0; meta.owned=data.meta.owned||{};
+    meta.stats=Object.assign({g:0,p:0,w:0,ge:0},data.meta.stats);
+    meta.hist=Array.isArray(data.meta.hist)?data.meta.hist:[];
+    metaSave();
+    if(data.best) saveBest(data.best);
+    if(Array.isArray(data.maps)) saveMaps(data.maps);
+    return null;
+  }catch(e){ return '불러오기 실패 — 코드를 다시 확인하세요'; }
+}
 
 /* ============================== 사운드 (WebAudio 합성) ============================== */
 const SND=(()=>{
@@ -417,7 +492,7 @@ function initWorld(np){
   // 퍽 적용 (시작 자금: 해당 플레이어 / 기지 체력: 방장·솔로 소유 시 전원 공유)
   for(let pi=0;pi<np;pi++) if(net.perks&&net.perks[pi]&&net.perks[pi].sm) world.money[pi]+=100;
   if(net.perks&&net.perks[0]&&net.perks[0].hp) world.lives+=25;
-  effects=[]; selShop=null; selTower=null; flash=0; sessionGems=0;
+  effects=[]; selShop=null; selTower=null; flash=0; sessionGems=0; sessionRecorded=false;
   if(typeof AIM!=='undefined') AIM.clear();
 }
 
@@ -604,6 +679,7 @@ function waveCleared(){
     if(t.owner<w.np) w.money[t.owner]+=inc;
     emitFx(['m',t.x,t.y,inc]);
   }
+  meta.stats.w++;
   awardGems(gemsForWave(w.wave)); // 호스트/솔로 젬 (클라이언트는 스냅샷에서 지급)
   SND.wave();
   if(w.wave>=MAXWAVE && !w.endless){ victory(); return; }
@@ -620,6 +696,7 @@ function gameOver(){
   world.phase='over';
   saveBest(world.wave);
   awardGems(Math.floor(world.wave/2));
+  recordGame('over',world.wave,world.pops);
   SND.lose();
   showOverlay('over');
   if(net.mode==='host') hostSnapshot(999);
@@ -628,6 +705,7 @@ function victory(){
   world.phase='won';
   saveBest(world.wave);
   awardGems(40);
+  recordGame('won',world.wave,world.pops);
   SND.win();
   showOverlay('won');
   if(net.mode==='host') hostSnapshot(999);
@@ -834,14 +912,14 @@ function handleHostMsg(d){
       net.started=true; net.np=d.np; cState.pis=d.pis;
       if(d.map) setPath(d.map);
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
-      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0;
+      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionRecorded=false;
       effects=[]; selShop=null; selTower=null; AIM.clear();
       enterGame(); break;
     case 's': clientSnapshot(d); break;
     case 'no': toast(d.m); break;
     case 'reset':
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
-      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0;
+      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionRecorded=false;
       effects=[]; selShop=null; selTower=null; AIM.clear(); hideOverlay(); syncPalette(); break;
     case 'cont': hideOverlay(); break;
   }
@@ -877,13 +955,13 @@ function clientSnapshot(d){
   // 웨이브 클리어 감지 → 젬 지급 (클라이언트)
   if(cState.lastWave==null) cState.lastWave=d.w;
   if(d.w>cState.lastWave){
-    for(let cw=cState.lastWave;cw<d.w;cw++) awardGems(gemsForWave(cw));
-    SND.wave();
+    for(let cw=cState.lastWave;cw<d.w;cw++){ awardGems(gemsForWave(cw)); meta.stats.w++; }
+    metaSave(); SND.wave();
   }
   cState.lastWave=d.w;
   if(d.ph!==cState.lastPhase){
-    if(d.ph==='over'){ awardGems(Math.floor(d.w/2)); SND.lose(); showOverlay('over'); }
-    else if(d.ph==='won'){ awardGems(40); SND.win(); showOverlay('won'); }
+    if(d.ph==='over'){ awardGems(Math.floor(d.w/2)); recordGame('over',d.w,d.pp); SND.lose(); showOverlay('over'); }
+    else if(d.ph==='won'){ awardGems(40); recordGame('won',d.w,d.pp); SND.win(); showOverlay('won'); }
     cState.lastPhase=d.ph;
   }
 }
@@ -1577,7 +1655,7 @@ function saveBest(w){ try{ if(w>loadBest()) localStorage.setItem('npd_best',w); 
 /* ============================== 화면 전환 ============================== */
 function show(name){
   screenName=name;
-  ['start','lobby','game','shop','edit'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
+  ['start','lobby','game','shop','edit','save'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
 }
 function showLobby(){
   show('lobby');
@@ -1646,6 +1724,40 @@ function renderShop(){
 $('#btnShop').onclick=()=>{ SND.click(); renderShop(); show('shop'); };
 $('#btnShopBack').onclick=()=>{ SND.click(); $('#gemBal').textContent=meta.gems; show('start'); };
 
+/* ============================== 기록·저장 화면 ============================== */
+function renderSaveScreen(){
+  const s=meta.stats;
+  $('#statGrid').innerHTML=[
+    [s.g,'플레이한 게임'],[loadBest(),'최고 웨이브'],[s.p,'누적 팝'],
+    [s.w,'클리어한 웨이브'],[s.ge,'누적 획득 💎'],[meta.gems,'보유 💎'],
+  ].map(([v,l])=>`<div class="statBox"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('#histList').innerHTML=meta.hist.length
+    ? meta.hist.map(h=>`<div class="histRow"><span>${h.d} · ${h.m}</span><span>🌊${h.w} · 🎈${h.p}</span><span class="${h.r==='won'?'win':'lose'}">${h.r==='won'?'승리':'패배'}</span></div>`).join('')
+    : '<div class="histRow"><span style="color:#5f6c8c">아직 기록이 없습니다 — 첫 게임을 플레이해보세요!</span></div>';
+  $('#saveCode').value=exportSave();
+  $('#loadCode').value=''; $('#saveMsg').textContent='';
+}
+$('#btnSave').onclick=()=>{ SND.click(); renderSaveScreen(); show('save'); };
+$('#btnSaveBack').onclick=()=>{ SND.click(); $('#gemBal').textContent=meta.gems; refreshMapSel(); show('start'); };
+$('#btnCopySave').onclick=()=>{
+  const code=$('#saveCode').value;
+  const done=()=>{ $('#saveMsg').style.color='#52d273'; $('#saveMsg').textContent='복사되었습니다! 메모장 등에 안전하게 보관하세요'; };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done).catch(()=>{ $('#saveCode').select(); document.execCommand('copy'); done(); });
+  else{ $('#saveCode').select(); document.execCommand('copy'); done(); }
+  SND.click();
+};
+$('#btnLoadSave').onclick=()=>{
+  const err=importSave($('#loadCode').value);
+  const msg=$('#saveMsg');
+  if(err){ msg.style.color='var(--red)'; msg.textContent=err; SND.click(); }
+  else{
+    SND.coin(); renderSaveScreen();
+    $('#gemBal').textContent=meta.gems; refreshMapSel();
+    $('#bestLine').textContent=loadBest()?`🏅 최고 기록: 웨이브 ${loadBest()}`:'';
+    msg.style.color='#52d273'; msg.textContent='✓ 불러오기 완료!';
+  }
+};
+
 /* ============================== 맵 선택 & 에디터 ============================== */
 function refreshMapSel(){
   const sel=$('#mapSel'), maps=loadMaps();
@@ -1655,6 +1767,7 @@ function refreshMapSel(){
 $('#mapSel').onchange=e=>{
   const i=+e.target.value, maps=loadMaps();
   selectedMap=(i>=0&&maps[i])?maps[i].p:null;
+  selectedMapName=(i>=0&&maps[i])?maps[i].n:'기본 맵';
 };
 
 let editPts=[];
@@ -1867,7 +1980,7 @@ setInterval(()=>{
 },100);
 
 // 디버그 훅
-window.NPD={get world(){return world;},net,cState,initWorld,doPlace,doUpgrade,requestWaveStart,TDEFS,EDEFS,placeable,pointAt,get PATHLEN(){return PATHLEN;},meta,metaSave,setPath,loadMaps,SND,awardGems,tick:dt=>updateSim(dt)};
+window.NPD={get world(){return world;},net,cState,initWorld,doPlace,doUpgrade,requestWaveStart,TDEFS,EDEFS,placeable,pointAt,get PATHLEN(){return PATHLEN;},meta,metaSave,setPath,loadMaps,SND,awardGems,exportSave,importSave,recordGame,tick:dt=>updateSim(dt)};
 </script>
 </body>
 </html>
