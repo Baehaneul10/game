@@ -120,6 +120,34 @@
 
   #hint { position:absolute; top:8px; left:10px; z-index:4; font-size:11px; color:#5f6c8c; pointer-events:none; }
 
+  /* 터치 배치 확인 버튼 */
+  #placeConfirm { position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    display:none; gap:8px; z-index:7; }
+  #placeConfirm button { padding:13px 20px; border-radius:14px; border:none; font-weight:800;
+    font-size:16px; font-family:inherit; box-shadow:0 4px 14px rgba(0,0,0,.45); }
+  #pcOk { background:var(--acc); color:#04211c; }
+  #pcOk:disabled { background:#26314e; color:#6b7899; }
+  #pcNo { background:#3a2430; color:#ff9aa6; }
+
+  /* 모바일: 비필수 UI 숨김 + 터치 타깃 확대 */
+  @media (pointer:coarse), (max-width:700px) {
+    #hint { display:none; }
+    .tbtn { min-width:86px; padding:9px 6px; }
+    .tbtn .ic img { width:40px; height:40px; }
+    .tbtn .nm { font-size:12px; }
+    .tbtn .co { font-size:12px; }
+    #infopanel button { padding:11px 15px; font-size:14px; }
+    .specBtn { padding:11px 12px !important; font-size:13px !important; }
+    .stat { font-size:13px; }
+  }
+  @media (max-width:520px) {
+    #btnMute { display:none; }   /* 음소거는 시작 화면에서 */
+    .chip { font-size:10px; padding:2px 6px; }
+    #hud { gap:5px; padding:6px 6px; }
+    .hbtn { padding:7px 8px; font-size:13px; }
+    #btnWave { padding:8px 10px; font-size:13px; }
+  }
+
   /* HUD 보조 버튼 */
   .hbtn { padding:7px 10px; font-size:14px; font-weight:800; border-radius:10px; border:1px solid #2c3a5e;
     background:var(--panel2); color:#eaf2ff; cursor:pointer; }
@@ -286,6 +314,7 @@
   <div id="cwrap">
     <canvas id="cv"></canvas>
     <div id="hint">1~9: 타워 선택 · 클릭/터치: 설치 · ESC: 취소 · 스페이스: 웨이브 시작</div>
+    <div id="placeConfirm"><button id="pcOk">✓ 설치</button><button id="pcNo">✕ 취소</button></div>
     <div id="infopanel">
       <div class="ttl" id="ipTitle"></div>
       <div class="st" id="ipStat"></div>
@@ -504,6 +533,7 @@ const SND=(()=>{
     leak(){ tone(220,70,.35,'square',.25); },
     coin(){ tone(880,880,.07,'sine',.12); tone(1320,1320,.09,'sine',.12,.07); },
     click(){ tone(420,380,.04,'sine',.1); },
+    place(){ tone(200,320,.1,'triangle',.16); tone(480,480,.08,'sine',.1,.06); },
     wave(){ tone(440,660,.18,'triangle',.14); },
     lose(){ tone(300,60,.8,'sawtooth',.25); },
     win(){ [523,659,784,1046].forEach((f,i)=>tone(f,f,.18,'triangle',.16,i*.14)); },
@@ -542,6 +572,8 @@ const cState={snapA:null, snapB:null, towers:[], projs:[], data:null}; // 클라
 let effects=[];           // 로컬 시각 효과 (모든 모드)
 let flash=0;              // 피격 화면 플래시
 let selShop=null, selTower=null, ghost=null;
+let pendingPlace=null, placeDragging=false; // 터치: 탭→고스트→드래그 조정→✓ 확정
+const IS_TOUCH=window.matchMedia?matchMedia('(pointer:coarse)').matches:('ontouchstart' in window);
 let screenName='start';
 window.__ts=1;            // 디버그 배속
 
@@ -903,6 +935,7 @@ function doPlace(pi,type,x,y){
   w.money[pi]-=def.cost[0];
   w.towers.push({id:w.tid++,type,level:0,x:Math.round(x),y:Math.round(y),owner:pi,cd:0,spent:def.cost[0],bDmg:0,bRng:0,bRate:0,spec:null,tmode:0});
   recomputeBuffs(); w.twDirty=true;
+  emitFx(['bd',Math.round(x),Math.round(y),pi]); // 설치 완료 펄스
   return null;
 }
 function doSpec(pi,id,which){
@@ -980,6 +1013,7 @@ function spawnFx(ev){
   else if(k==='k'){ flash=.35; SND.leak(); }
   else if(k==='m'){ effects.push({kind:'money',x:ev[1],y:ev[2],amt:ev[3],t:0,dur:1.1}); SND.coin(); }
   else if(k==='c'){ effects.push({kind:'crit',x:ev[1],y:ev[2],t:0,dur:.6}); }
+  else if(k==='bd'){ effects.push({kind:'build',x:ev[1],y:ev[2],col:PCOLORS[ev[3]]||'#38e1c6',t:0,dur:.5}); SND.place(); }
   else if(k==='f' && net.mode==='client'){
     cState.projs.push({x:ev[1],y:ev[2],eid:ev[3],kind:TKEYS[ev[4]],
       spd:TDEFS[TKEYS[ev[4]]].projSpd||400});
@@ -1661,19 +1695,41 @@ function render(){
       ctx.font='bold 15px sans-serif'; ctx.textAlign='center';
       ctx.fillStyle=`rgba(255,80,80,${1-k})`;
       ctx.fillText('3×!',f.x,projY(f.y)-BAL_ALT-10-k*20);
+    }else if(f.kind==='build'){ // 설치 완료 펄스 (바닥 링 2겹)
+      ctx.save(); ctx.translate(0,TOPPAD); ctx.scale(1,SQ);
+      ctx.globalAlpha=1-k;
+      ctx.beginPath(); ctx.arc(f.x,f.y,16+k*26,0,7);
+      ctx.strokeStyle=f.col; ctx.lineWidth=3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x,f.y,10+k*14,0,7);
+      ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.restore();
     }
   }
 
-  // 설치 고스트
-  if(selShop && ghost){
+  // 설치 고스트 (터치는 확정 대기 pendingPlace 우선)
+  const gp=selShop?(pendingPlace||ghost):null;
+  if(gp){
     const def=TDEFS[selShop];
-    const ok=placeable(ghost.x,ghost.y)&&myMoney()>=def.cost[0];
+    const ok=placeable(gp.x,gp.y)&&myMoney()>=def.cost[0];
     ctx.save(); ctx.translate(0,TOPPAD); ctx.scale(1,SQ);
-    ctx.beginPath(); ctx.arc(ghost.x,ghost.y,def.range[0],0,7);
+    ctx.beginPath(); ctx.arc(gp.x,gp.y,def.range[0],0,7);
     ctx.fillStyle=ok?'rgba(56,225,198,.1)':'rgba(255,92,108,.1)'; ctx.fill();
     ctx.strokeStyle=ok?'rgba(56,225,198,.5)':'rgba(255,92,108,.5)'; ctx.lineWidth=1.5; ctx.stroke();
+    if(pendingPlace){ // 조준 가이드 십자선 (작은 화면 정밀 배치용)
+      ctx.setLineDash([6,6]);
+      ctx.strokeStyle=ok?'rgba(56,225,198,.35)':'rgba(255,92,108,.35)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(gp.x,-20); ctx.lineTo(gp.x,FH+20);
+      ctx.moveTo(-20,gp.y); ctx.lineTo(FW+20,gp.y); ctx.stroke();
+      ctx.setLineDash([]);
+      const pk2=(tnow%1)/1;
+      ctx.beginPath(); ctx.arc(gp.x,gp.y,20+pk2*10,0,7);
+      ctx.globalAlpha=(1-pk2)*.8;
+      ctx.strokeStyle=ok?'#38e1c6':'#ff5c6c'; ctx.lineWidth=2.5; ctx.stroke();
+      ctx.globalAlpha=1;
+    }
     ctx.restore();
-    ctx.save(); ctx.translate(ghost.x,projY(ghost.y)); ctx.globalAlpha=.65;
+    ctx.save(); ctx.translate(gp.x,projY(gp.y)); ctx.globalAlpha=.75;
     drawTowerArt(ctx,selShop,0,ok?'#38e1c6':'#ff5c6c',-2.2,tnow);
     ctx.restore(); ctx.globalAlpha=1;
   }
@@ -1751,6 +1807,18 @@ function syncHUD(force){
     bw.disabled=true;
     setText('#btnWave','웨이브 진행 중');
   }
+  // 터치 배치 확정 버튼
+  const pc=$('#placeConfirm');
+  if(selShop&&pendingPlace){
+    const def=TDEFS[selShop];
+    const can=placeable(pendingPlace.x,pendingPlace.y)&&money>=def.cost[0];
+    const txt=money<def.cost[0]?'💰 부족':(can?`✓ 설치 💰${def.cost[0]}`:'설치 불가 위치');
+    if(hudCache.pcTxt!==txt){
+      hudCache.pcTxt=txt;
+      $('#pcOk').textContent=txt; $('#pcOk').disabled=!can;
+    }
+    if(pc.style.display!=='flex') pc.style.display='flex';
+  }else if(pc.style.display!=='none'){ pc.style.display='none'; hudCache.pcTxt=null; }
   // 다음 웨이브 미리보기 (준비 시간에만)
   const pv=$('#wavePrev');
   if(phase==='prep'){
@@ -1803,7 +1871,7 @@ function syncPalette(){
 }
 function selectShop(k){
   if(k&&!hasT(k)){ toast('🛒 상점에서 해금 후 사용할 수 있습니다'); return; }
-  selShop=k; selTower=null; ghost=null;
+  selShop=k; selTower=null; ghost=null; pendingPlace=null;
   document.querySelectorAll('.tbtn').forEach(b=>b.classList.toggle('sel',b.dataset.type===k));
   syncInfoPanel();
   if(k) toast(TDEFS[k].desc+' — 빈 곳을 눌러 설치',1200);
@@ -2188,23 +2256,34 @@ function myActLocal(msg){ // 내 조작을 실행(호스트/솔로) 또는 전�
 }
 function tryPlace(x,y){
   const def=TDEFS[selShop];
-  if(!placeable(x,y)){ toast('설치할 수 없는 위치입니다'); return; }
-  if(myMoney()<def.cost[0]){ toast('돈이 부족합니다'); return; }
+  if(!placeable(x,y)){ toast('설치할 수 없는 위치입니다'); return false; }
+  if(myMoney()<def.cost[0]){ toast('돈이 부족합니다'); return false; }
   const err=myActLocal({t:'act',a:'place',tt:selShop,x:Math.round(x),y:Math.round(y)});
-  if(err) toast(err);
+  if(err){ toast(err); return false; }
+  return true;
 }
 cv.addEventListener('pointerdown',ev=>{
   ev.preventDefault();
   const s=toScreenLocal(ev.clientX,ev.clientY);
   const p=toLogical(ev.clientX,ev.clientY);
   if(p.x<-20||p.x>FW+20||p.y<-40||p.y>FH+40) return;
-  if(selShop){ tryPlace(p.x,p.y); return; }
-  // 타워 선택 (화면 좌표 기준 — 포탑은 지면보다 위에 그려짐)
+  if(selShop){
+    const touch=ev.pointerType!=='mouse';
+    if(touch||IS_TOUCH){
+      // 터치: 바로 설치하지 않고 고스트를 놓고 ✓로 확정 (드래그로 위치 조정 가능)
+      pendingPlace={x:clamp(p.x,20,FW-20),y:clamp(p.y,20,FH-20)};
+      placeDragging=true;
+      return;
+    }
+    tryPlace(p.x,p.y); return;
+  }
+  // 타워 선택 (화면 좌표 기준 — 포탑은 지면보다 위에 그려짐, 터치는 더 넓게)
   const towers=net.mode==='client'?cState.towers:(world?world.towers:[]);
+  const hw=IS_TOUCH?27:20, hyLo=IS_TOUCH?-46:-40, hyHi=IS_TOUCH?18:14;
   let best=null,bd=1e9;
   for(const t of towers){
     const dx=Math.abs(s.x-t.x), dy=s.y-projY(t.y);
-    if(dx<20 && dy>-40 && dy<14){
+    if(dx<hw && dy>hyLo && dy<hyHi){
       const dd=dx+Math.abs(dy+13);
       if(dd<bd){ bd=dd; best=t; }
     }
@@ -2214,13 +2293,25 @@ cv.addEventListener('pointerdown',ev=>{
 });
 cv.addEventListener('pointermove',ev=>{
   if(!selShop) return;
+  if(placeDragging&&pendingPlace){
+    const p=toLogical(ev.clientX,ev.clientY);
+    pendingPlace={x:clamp(p.x,20,FW-20),y:clamp(p.y,20,FH-20)};
+    return;
+  }
   ghost=toLogical(ev.clientX,ev.clientY);
 });
+window.addEventListener('pointerup',()=>{ placeDragging=false; });
+window.addEventListener('pointercancel',()=>{ placeDragging=false; });
+$('#pcOk').onclick=()=>{
+  if(!selShop||!pendingPlace) return;
+  if(tryPlace(pendingPlace.x,pendingPlace.y)) pendingPlace=null;
+};
+$('#pcNo').onclick=()=>{ pendingPlace=null; SND.click(); };
 cv.addEventListener('contextmenu',ev=>{ ev.preventDefault(); selectShop(null); });
 window.addEventListener('keydown',ev=>{
   if(screenName!=='game') return;
   if(ev.key>='1'&&ev.key<='9') selectShop(TKEYS[+ev.key-1]===selShop?null:TKEYS[+ev.key-1]);
-  else if(ev.key==='Escape'){ selectShop(null); selTower=null; syncInfoPanel(); }
+  else if(ev.key==='Escape'){ selectShop(null); selTower=null; pendingPlace=null; syncInfoPanel(); }
   else if(ev.key===' '){ ev.preventDefault(); myActLocal({t:'act',a:'wave'}); }
   else if((ev.key==='u'||ev.key==='U')&&selTower!=null){ const e=myActLocal({t:'act',a:'up',id:selTower}); if(e)toast(e); }
 });
