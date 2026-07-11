@@ -103,10 +103,10 @@
   .specBtn b { float:right; }
 
   #toast {
-    position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    position:fixed; top:12px; left:50%; transform:translateX(-50%);
     background:rgba(19,26,42,.95); border:1px solid var(--red); color:#ffb5bd;
-    border-radius:10px; padding:8px 16px; font-size:13px; font-weight:700; z-index:9;
-    display:none; white-space:nowrap;
+    border-radius:10px; padding:8px 16px; font-size:13px; font-weight:700; z-index:99;
+    display:none; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis;
   }
 
   #overlay {
@@ -152,6 +152,18 @@
   .shopCard button:disabled { background:#26314e; color:#6b7899; }
   .shopCard button.owned { background:#1d3a31; color:#52d273; }
 
+  /* 도감 */
+  #helpList { width:min(460px,94vw); max-height:64vh; overflow-y:auto; margin:10px 0; }
+  .helpSec { font-weight:900; font-size:14px; color:var(--acc); margin:12px 0 4px; }
+  .helpRow { display:flex; gap:10px; align-items:flex-start; background:var(--panel); border-radius:10px;
+    padding:9px 12px; margin:5px 0; font-size:12.5px; text-align:left; }
+  .helpRow img { flex:none; }
+  .helpRow .hb { flex:1; min-width:0; }
+  .helpRow .hn { font-weight:800; font-size:13px; }
+  .helpRow .hd { color:var(--dim); margin-top:1px; line-height:1.45; }
+  .helpRow .hs { margin-top:3px; font-size:11.5px; line-height:1.5; }
+  .eDot { width:20px; height:24px; border-radius:50% 50% 50% 50%/45% 45% 55% 55%; flex:none; margin-top:2px; }
+
   /* 기록·저장 */
   #statGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:min(420px,92vw); margin:8px 0; }
   .statBox { background:var(--panel); border:1px solid #2c3a5e; border-radius:10px; padding:10px 6px; text-align:center; }
@@ -185,7 +197,10 @@
   <h1 class="logo">네온 팝 디펜스</h1>
   <div class="sub">밀려오는 풍선을 타워로 막아라!<br>최대 4명이 각자 폰·PC로 함께 플레이</div>
   <div class="gembar">💎 <b id="gemBal">0</b></div>
-  <select class="mapsel" id="mapSel"></select>
+  <div style="display:flex;gap:6px;align-items:center;width:min(320px,86vw)">
+    <select class="mapsel" id="mapSel" style="flex:1;width:auto;margin:7px 0"></select>
+    <button class="btn small" id="btnDelMap" style="display:none;margin:0;padding:11px 12px">🗑</button>
+  </div>
   <button class="btn primary" id="btnSolo">🎮 혼자 하기</button>
   <button class="btn" id="btnHost">📡 방 만들기 (친구 초대)</button>
   <input class="code" id="inCode" maxlength="4" placeholder="초대 코드 입력" autocomplete="off">
@@ -194,6 +209,7 @@
     <button class="btn small" id="btnShop">🛒 상점</button>
     <button class="btn small" id="btnEdit">🗺️ 맵 에디터</button>
     <button class="btn small" id="btnSave">📜 기록·저장</button>
+    <button class="btn small" id="btnHelp">❓ 도감</button>
     <button class="btn small" id="btnMute0">🔊</button>
   </div>
   <div class="netmsg" id="startMsg"></div>
@@ -206,6 +222,13 @@
   <div class="gembar">보유 💎 <b id="gemBal2">0</b></div>
   <div id="shopList"></div>
   <button class="btn small" id="btnShopBack">← 돌아가기</button>
+</div>
+
+<!-- 도감 (도움말) -->
+<div id="scr-help" class="screen">
+  <h1 class="logo" style="font-size:26px">❓ 도감</h1>
+  <div id="helpList"></div>
+  <button class="btn small" id="btnHelpBack">← 돌아가기</button>
 </div>
 
 <!-- 기록·저장 -->
@@ -262,8 +285,7 @@
   <div id="wavePrev"></div>
   <div id="cwrap">
     <canvas id="cv"></canvas>
-    <div id="hint">1~6: 타워 선택 · 클릭/터치: 설치 · ESC: 취소 · 스페이스: 웨이브 시작</div>
-    <div id="toast"></div>
+    <div id="hint">1~9: 타워 선택 · 클릭/터치: 설치 · ESC: 취소 · 스페이스: 웨이브 시작</div>
     <div id="infopanel">
       <div class="ttl" id="ipTitle"></div>
       <div class="st" id="ipStat"></div>
@@ -278,6 +300,8 @@
   </div>
   <div id="palette"></div>
 </div>
+
+<div id="toast"></div>
 
 <script>
 'use strict';
@@ -505,7 +529,11 @@ function waveGroups(n){
   }
   return g;
 }
-function hpMul(w,np){ return (1+(w-1)*.09+Math.max(0,w-30)*.3)*(1+(np-1)*.22); }
+function hpMul(w,np){
+  let m=(1+(w-1)*.09)*(1+(np-1)*.22);
+  if(w>30) m*=Math.pow(1.13,w-30); // 무한 모드: 지수 스케일링
+  return m;
+}
 
 /* ============================== 상태 ============================== */
 const net={mode:'solo', peer:null, conns:{}, myPi:0, np:1, started:false, code:'', perks:{}};
@@ -1890,7 +1918,7 @@ function saveBest(w){ try{ if(w>loadBest()) localStorage.setItem('npd_best',w); 
 /* ============================== 화면 전환 ============================== */
 function show(name){
   screenName=name;
-  ['start','lobby','game','shop','edit','save'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
+  ['start','lobby','game','shop','edit','save','help'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
 }
 function showLobby(){
   show('lobby');
@@ -1993,6 +2021,36 @@ $('#btnLoadSave').onclick=()=>{
   }
 };
 
+/* ============================== 도감 ============================== */
+const ENAMES={red:'빨강',blue:'파랑',green:'초록',yellow:'노랑',purple:'보라',boss:'보스',metal:'메탈',split:'분열'};
+const ETRAIT={red:'기본 풍선',blue:'조금 빠르고 단단함',green:'느리지만 튼튼함',yellow:'매우 빠름',
+  purple:'체력 재생 · 감속 저항 — 독이 효과적',boss:'10웨이브마다 등장하는 거대 풍선',
+  metal:'받는 피해 40% 감소 · 독 면역',split:'터지면 빨강 풍선 2개로 분열'};
+function renderHelp(){
+  let html='<div class="helpSec">🏰 타워 & 특화 (3강 후 A/B 중 택1)</div>';
+  for(const k of TKEYS){
+    const d=TDEFS[k], s=SPECS[k];
+    html+=`<div class="helpRow"><img src="${towerIconURL(k)}" width="40" height="40">
+      <div class="hb"><div class="hn">${d.name} <span style="color:var(--acc)">💰${d.cost[0]}</span>${d.lock?' <span style="color:#b28dff">🛒상점 해금</span>':''}</div>
+      <div class="hd">${d.desc}</div>
+      <div class="hs"><span style="color:#ffb347">⚡${s.a.n}</span> ${s.a.d} · <span style="color:#b06cff">🌀${s.b.n}</span> ${s.b.d}</div></div></div>`;
+  }
+  html+='<div class="helpSec">🎈 적 풍선</div>';
+  for(const k of EKEYS){
+    const e=EDEFS[k];
+    html+=`<div class="helpRow"><div class="eDot" style="background:${e.col}"></div>
+      <div class="hb"><div class="hn">${ENAMES[k]}</div><div class="hd">${ETRAIT[k]} · 체력 ${e.hp} · 새는 목숨 ${e.dmg}</div></div></div>`;
+  }
+  html+='<div class="helpSec">💡 팁</div><div class="helpRow"><div class="hb"><div class="hd">'
+    +'· 타워를 누르면 강화·특화·타겟 우선순위를 바꿀 수 있어요<br>'
+    +'· 버프 타워는 주변 타워를 강화하고, 은행은 웨이브마다 돈을 벌어줘요<br>'
+    +'· 웨이브를 일찍 시작하면 남은 초당 💰2의 보너스!<br>'
+    +'· 💎젬은 웨이브를 깰 때마다 쌓이고 상점에서 타워 해금·퍽 구매에 사용</div></div></div>';
+  $('#helpList').innerHTML=html;
+}
+$('#btnHelp').onclick=()=>{ SND.click(); renderHelp(); show('help'); };
+$('#btnHelpBack').onclick=()=>{ SND.click(); show('start'); };
+
 /* ============================== 맵 선택 & 에디터 ============================== */
 function refreshMapSel(){
   const sel=$('#mapSel'), maps=loadMaps();
@@ -2003,6 +2061,23 @@ $('#mapSel').onchange=e=>{
   const i=+e.target.value, maps=loadMaps();
   selectedMap=(i>=0&&maps[i])?maps[i].p:null;
   selectedMapName=(i>=0&&maps[i])?maps[i].n:'기본 맵';
+  $('#btnDelMap').style.display=selectedMap?'block':'none';
+  delMapArmed=0;
+};
+// 커스텀 맵 삭제 (실수 방지: 두 번 눌러 확정)
+let delMapArmed=0;
+$('#btnDelMap').onclick=()=>{
+  const sel=$('#mapSel'), i=+sel.value;
+  if(i<0) return;
+  if(Date.now()-delMapArmed>3000){
+    delMapArmed=Date.now();
+    toast(`"${selectedMapName}" 삭제하려면 3초 안에 한 번 더 누르세요`,2500);
+    return;
+  }
+  const maps=loadMaps();
+  maps.splice(i,1); saveMaps(maps);
+  refreshMapSel(); sel.value='-1'; sel.dispatchEvent(new Event('change'));
+  SND.click(); toast('맵이 삭제되었습니다');
 };
 
 let editPts=[];
