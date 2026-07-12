@@ -412,7 +412,7 @@ function distToSeg(px,py,x1,y1,x2,y2){
 
 /* ============================== 경로 ============================== */
 // 2.5D 투영: 바닥을 SQ 비율로 눕히고, 공중 객체는 위로 띄움
-const SQ=.62, TOPPAD=50, BAL_ALT=26, PROJ_ALT=20;
+const SQ=.62, TOPPAD=50, BAL_ALT=26, PROJ_ALT=26;
 // 논리 필드 크기 — 가로형(PC·가로폰)과 세로형(세로폰) 두 가지 보드
 const LAND_FIELD=[960,600], PORT_FIELD=[520,1100];
 let FW=960, FH=600;
@@ -796,13 +796,13 @@ function updateSim(dt){
           damageEnemy(e,dmg,'m');
         }
       }
-      if(hit){ t.cd=rate; emitFx(['i',t.x,t.y,Math.round(rng)]); }
+      if(hit){ t.cd=rate; markFire(t.id); emitFx(['i',t.x,t.y,Math.round(rng),t.id]); }
       continue;
     }
     if(t.type==='tesla'){
       const first=pickTarget(t,rng,mode);
       if(!first) continue;
-      t.cd=rate;
+      t.cd=rate; markFire(t.id);
       const chainN=t.spec==='a'?10:def.chain[t.level];
       const hitSet=new Set([first.id]), pts=[t.x,t.y];
       let cur=first;
@@ -822,7 +822,7 @@ function updateSim(dt){
         damageEnemy(best,dmg,'m');
         cur=best;
       }
-      emitFx(['z',...pts]);
+      emitFx(['z',t.id,...pts]);
       continue;
     }
     // 발사체형 (dart / sniper / bomb / poison)
@@ -853,8 +853,9 @@ function updateSim(dt){
         pierce:t.type==='dart'&&t.spec==='b'?2:0, hitIds:null,
         dot:def.dot?def.dot[t.level]*(1+t.bDmg)*(t.permMul||1)*(t.spec==='a'?2.5:1):0,
         dotDur:def.dotDur||0, dotSp:t.type==='poison'&&t.spec==='b'});
-      if(net.mode==='host') w.events.push(['f',Math.round(t.x),Math.round(t.y),tg.id,TKEYS.indexOf(t.type)]);
+      if(net.mode==='host') w.events.push(['f',Math.round(t.x),Math.round(t.y),tg.id,TKEYS.indexOf(t.type),t.id]);
     }
+    markFire(t.id);
     SND.shoot();
   }
 
@@ -1112,9 +1113,9 @@ function emitFx(ev){
 }
 function spawnFx(ev){
   const k=ev[0];
-  if(k==='i'){ effects.push({kind:'ring',x:ev[1],y:ev[2],r:ev[3],t:0,dur:.35,col:'#8fd8ff'}); SND.freeze(); }
+  if(k==='i'){ effects.push({kind:'ring',x:ev[1],y:ev[2],r:ev[3],t:0,dur:.35,col:'#8fd8ff'}); if(ev[4]!=null)markFire(ev[4]); SND.freeze(); }
   else if(k==='x'){ effects.push({kind:'boom',x:ev[1],y:ev[2],r:ev[3],t:0,dur:.3}); SND.boom(); }
-  else if(k==='z'){ effects.push({kind:'zap',pts:ev.slice(1),t:0,dur:.14}); SND.zap(); }
+  else if(k==='z'){ effects.push({kind:'zap',pts:ev.slice(2),t:0,dur:.14}); if(ev[1]!=null)markFire(ev[1]); SND.zap(); }
   else if(k==='d'){ effects.push({kind:'pop',x:ev[1],y:ev[2],col:EDEFS[EKEYS[ev[3]]].col,t:0,dur:.3}); SND.pop(); }
   else if(k==='k'){ flash=.35; SND.leak(); }
   else if(k==='m'){ effects.push({kind:'money',x:ev[1],y:ev[2],amt:ev[3],t:0,dur:1.1}); SND.coin(); }
@@ -1123,6 +1124,7 @@ function spawnFx(ev){
   else if(k==='f' && net.mode==='client'){
     cState.projs.push({x:ev[1],y:ev[2],eid:ev[3],kind:TKEYS[ev[4]],
       spd:TDEFS[TKEYS[ev[4]]].projSpd||400});
+    if(ev[5]!=null) markFire(ev[5]);
     SND.shoot();
   }
 }
@@ -1555,7 +1557,7 @@ function drawTowerArt(g,type,level,ownerCol,aim,time,spec){
   g.restore();
 }
 // 일러스트 타워를 3D 게임 말처럼 렌더 (입체 받침대 + 그 위에 서 있는 빌보드 스프라이트 + 그림자)
-function drawTowerSprite(g,t,time){
+function drawTowerSprite(g,t,time,aim){
   const ownerCol=PCOLORS[t.owner]||'#888';
   const rarCol=RAR[TDEFS[t.type].rar][1];
   const s=(1+t.level*.08)*(t.spec?1.08:1);
@@ -1582,7 +1584,7 @@ function drawTowerSprite(g,t,time){
     g.beginPath(); g.ellipse(0,-ph,rx+pk*10,ry+pk*8,0,0,7);
     g.strokeStyle=SPECCOL[t.spec]; g.lineWidth=2; g.stroke(); g.globalAlpha=1;
   }
-  // 받침대 위에 서 있는 3D 모델 (빌보드 스프라이트)
+  // 받침대 위에 서 있는 3D 모델 (빌보드 스프라이트) — 조준 추적·반동 반응
   const spr=getSprite(t.type);
   if(spr){
     const H=46*s, W=H*spr.w/spr.h;
@@ -1592,7 +1594,34 @@ function drawTowerSprite(g,t,time){
     gg.addColorStop(0,rarCol+'88'); gg.addColorStop(1,'transparent');
     g.beginPath(); g.arc(0,0,rx*.9,0,7); g.fillStyle=gg; g.fill();
     g.restore();
-    g.drawImage(spr.cv,-W/2,-ph-H+ry+2,W,H);
+    // 반응 계산: 발사 반동(0.22초)·조준 방향
+    const ft=FIRE.get(t.id);
+    const rec=ft!=null?Math.max(0,1-(time-ft)/.22):0;      // 1→0 반동
+    const attacker=!['buff','bank','ice'].includes(t.type);
+    const flip=attacker&&Math.cos(aim||0)<0?-1:1;           // 타겟이 왼쪽이면 좌우 반전
+    const tilt=attacker?clamp(Math.atan2(Math.sin(aim||0),Math.abs(Math.cos(aim||0)))*.22,-.18,.18):0;
+    const idle=1+.012*Math.sin(time*2.1+t.id);              // 미세 숨쉬기
+    g.save();
+    g.translate(-Math.cos(aim||0)*rec*2.5, rec*1.2);        // 반동 킥백
+    g.translate(0,-ph+ry);                                  // 받침대 접점 기준 회전
+    g.rotate(tilt*flip);
+    g.scale(flip*idle*(1+rec*.05), idle*(1-rec*.1));        // 반전+숨쉬기+반동 스쿼시
+    g.drawImage(spr.cv,-W/2,-H+2,W,H);
+    g.restore();
+    // 총구 섬광 (발사 직후)
+    if(rec>.35&&attacker){
+      const mx=Math.cos(aim)*13, my=-ph-H*.45+Math.sin(aim)*8*SQ;
+      const fa=(rec-.35)/.65;
+      g.save(); g.translate(mx,my); g.rotate(aim);
+      const fg=g.createRadialGradient(0,0,.5,0,0,9);
+      fg.addColorStop(0,`rgba(255,245,200,${fa})`);
+      fg.addColorStop(.5,`rgba(255,180,70,${fa*.7})`);
+      fg.addColorStop(1,'rgba(255,140,40,0)');
+      g.beginPath(); g.arc(0,0,9,0,7); g.fillStyle=fg; g.fill();
+      g.beginPath(); g.moveTo(0,-3); g.lineTo(12*fa+4,0); g.lineTo(0,3); g.closePath();
+      g.fillStyle=`rgba(255,235,170,${fa})`; g.fill();
+      g.restore();
+    }
   }else{
     // 스프라이트 미준비 시 원형 클리핑 폴백
     const R=14*s;
@@ -1601,6 +1630,8 @@ function drawTowerSprite(g,t,time){
   }
 }
 const AIM=new Map();
+const FIRE=new Map(); // towerId → 마지막 발사 시각 (반동·총구 섬광용)
+function markFire(id){ FIRE.set(id,performance.now()/1000); }
 let lastDt=.016;
 function aimFor(t,enemies){
   let cur=AIM.get(t.id);
@@ -1835,9 +1866,10 @@ function render(){
   // 타워·풍선을 뒤(화면 위)→앞(아래) 순으로 그려 원근 겹침 처리
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const drawTowerObj=t=>{
+    const aim=aimFor(t,enemies);
     ctx.save(); ctx.translate(t.x,projY(t.y));
-    if(spriteReady(t.type)) drawTowerSprite(ctx,t,tnow);
-    else drawTowerArt(ctx,t.type,t.level,PCOLORS[t.owner]||'#888',aimFor(t,enemies),tnow,t.spec);
+    if(spriteReady(t.type)) drawTowerSprite(ctx,t,tnow,aim);
+    else drawTowerArt(ctx,t.type,t.level,PCOLORS[t.owner]||'#888',aim,tnow,t.spec);
     ctx.restore();
     if(t.spec){ // 특화: 별 마크
       const sy=projY(t.y)+15;
@@ -1929,17 +1961,49 @@ function render(){
     }
   }
 
-  // 발사체 (공중)
+  // 발사체 (공중) — 진행 방향으로 회전하는 탄환 + 트레일
+  const emap2=new Map(enemies.map(e=>[e.id,e]));
   for(const p of projs){
     const py=projY(p.y)-PROJ_ALT;
+    const tgt=emap2.get(p.eid);
+    const ang=tgt?Math.atan2((projY(tgt.y)-BAL_ALT)-py,tgt.x-p.x):0;
+    ctx.save(); ctx.translate(p.x,py); ctx.rotate(ang);
     if(p.kind==='bomb'){
-      ctx.beginPath(); ctx.arc(p.x,py,5,0,7); ctx.fillStyle='#2b3350'; ctx.fill();
+      // 회전하는 폭탄 + 불꽃 트레일
+      const tr=ctx.createLinearGradient(-16,0,0,0);
+      tr.addColorStop(0,'rgba(255,140,58,0)'); tr.addColorStop(1,'rgba(255,180,80,.7)');
+      ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(-4,-3); ctx.lineTo(-4,3); ctx.closePath();
+      ctx.fillStyle=tr; ctx.fill();
+      ctx.save(); ctx.rotate(tnow*9);
+      ctx.beginPath(); ctx.arc(0,0,5,0,7); ctx.fillStyle='#2b3350'; ctx.fill();
       ctx.strokeStyle='#ff8c3a'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.fillStyle='#ffd94d'; ctx.fillRect(3,-1,3,2);
+      ctx.restore();
     }else if(p.kind==='sniper'){
-      ctx.beginPath(); ctx.arc(p.x,py,3,0,7); ctx.fillStyle='#fff'; ctx.fill();
+      // 긴 저격 트레이서
+      const tr=ctx.createLinearGradient(-22,0,6,0);
+      tr.addColorStop(0,'rgba(255,255,255,0)'); tr.addColorStop(1,'rgba(255,255,255,.95)');
+      ctx.strokeStyle=tr; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(-22,0); ctx.lineTo(6,0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(5,0,2.4,0,7); ctx.fillStyle='#fff'; ctx.fill();
+    }else if(p.kind==='poison'){
+      // 독 글롭 + 방울 트레일
+      ctx.fillStyle='rgba(125,223,100,.45)';
+      ctx.beginPath(); ctx.arc(-8,1,1.8,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-13,-1,1.2,0,7); ctx.fill();
+      const pg=ctx.createRadialGradient(-1,-1,.5,0,0,4.5);
+      pg.addColorStop(0,'#d6ffb8'); pg.addColorStop(1,'#4faa33');
+      ctx.beginPath(); ctx.ellipse(0,0,5,3.8,0,0,7); ctx.fillStyle=pg; ctx.fill();
     }else{
-      ctx.beginPath(); ctx.arc(p.x,py,3.5,0,7); ctx.fillStyle='#38e1c6'; ctx.fill();
+      // 다트: 화살 모양 볼트 + 글로우 트레일
+      const tr=ctx.createLinearGradient(-14,0,0,0);
+      tr.addColorStop(0,'rgba(56,225,198,0)'); tr.addColorStop(1,'rgba(56,225,198,.8)');
+      ctx.strokeStyle=tr; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(0,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-2,-2.6); ctx.lineTo(-2,2.6); ctx.closePath();
+      ctx.fillStyle='#7ef5df'; ctx.fill();
     }
+    ctx.restore();
   }
 
   // 효과
@@ -2016,7 +2080,7 @@ function render(){
     }
     ctx.restore();
     ctx.save(); ctx.translate(gp.x,projY(gp.y)); ctx.globalAlpha=.75;
-    if(spriteReady(selShop)) drawTowerSprite(ctx,{type:selShop,level:0,owner:net.myPi,spec:null},tnow);
+    if(spriteReady(selShop)) drawTowerSprite(ctx,{type:selShop,level:0,owner:net.myPi,spec:null,id:-1},tnow,0);
     else drawTowerArt(ctx,selShop,0,ok?'#38e1c6':'#ff5c6c',-2.2,tnow);
     ctx.restore(); ctx.globalAlpha=1;
   }
