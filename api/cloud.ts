@@ -16,6 +16,9 @@ const NV = '2022-06-28';
 
 type Json = Record<string, any>;
 
+// Node 런타임 전역 (Vercel은 @types/node 없이 빌드하므로 직접 선언)
+declare const process: { env: Record<string, string | undefined> };
+
 function headers(token: string): Record<string, string> {
   return {
     'Authorization': `Bearer ${token}`,
