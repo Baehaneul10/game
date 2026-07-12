@@ -345,12 +345,21 @@ function distToSeg(px,py,x1,y1,x2,y2){
 }
 
 /* ============================== 경로 ============================== */
-const FW=960, FH=600; // 논리 필드 크기 (게임 로직 좌표)
 // 2.5D 투영: 바닥을 SQ 비율로 눕히고, 공중 객체는 위로 띄움
 const SQ=.62, TOPPAD=50, BAL_ALT=26, PROJ_ALT=20;
-const SHW=FW, SHH=FH*SQ+TOPPAD+30; // 화면 논리 크기
+// 논리 필드 크기 — 가로형(PC·가로폰)과 세로형(세로폰) 두 가지 보드
+const LAND_FIELD=[960,600], PORT_FIELD=[520,1100];
+let FW=960, FH=600;
+let SHW=FW, SHH=FH*SQ+TOPPAD+30; // 화면 논리 크기
+function setField(w,h){
+  FW=w; FH=h; SHW=FW; SHH=FH*SQ+TOPPAD+30;
+  if(typeof cv!=='undefined'&&cv) cv._bw=-1; // 캔버스 리핏 강제
+}
+function isPortraitView(){ return innerHeight>innerWidth*1.1; }
 const projY=y=>y*SQ+TOPPAD;
 const DEFAULT_PATH=[[-30,120],[240,120],[240,300],[80,300],[80,470],[480,470],[480,90],[700,90],[700,380],[880,380],[880,630]];
+// 세로형 보드(520×1100)용 S자 경로 — 세로폰 화면에 꽉 차는 레이아웃
+const PORTRAIT_PATH=[[-30,100],[420,100],[420,300],[100,300],[100,520],[440,520],[440,740],[100,740],[100,960],[380,960],[380,1130]];
 let PATH=[], SEGLEN=[], PATHLEN=0;
 function setPath(pts){
   PATH=pts.map(p=>[p[0],p[1]]);
@@ -1136,6 +1145,7 @@ function handleHostMsg(d){
     case 'lobby': cState.pis=d.pis; renderLobby(); break;
     case 'start':
       net.started=true; net.np=d.np; cState.pis=d.pis;
+      if(d.fld) setField(d.fld[0],d.fld[1]);
       if(d.map) setPath(d.map);
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
       cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionRecorded=false;
@@ -2036,9 +2046,9 @@ function beginHostGame(){
   const maxPi=Math.max(0,...Object.keys(net.conns).map(Number));
   net.np=Math.max(net.np,maxPi+1);
   net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0};
-  if(selectedMap) setPath(selectedMap); else setPath(DEFAULT_PATH);
+  applyBoardChoice();
   initWorld(net.np);
-  for(const pi in net.conns) net.conns[pi].send({t:'start',np:net.np,pis:activePis(),map:PATH});
+  for(const pi in net.conns) net.conns[pi].send({t:'start',np:net.np,pis:activePis(),map:PATH,fld:[FW,FH]});
   enterGame();
 }
 
@@ -2137,13 +2147,15 @@ $('#btnHelpBack').onclick=()=>{ SND.click(); show('start'); };
 /* ============================== 맵 선택 & 에디터 ============================== */
 function refreshMapSel(){
   const sel=$('#mapSel'), maps=loadMaps();
-  sel.innerHTML='<option value="-1">🗺️ 기본 맵</option>'
-    +maps.map((m,i)=>`<option value="${i}">🗺️ ${m.n} (커스텀)</option>`).join('');
+  sel.innerHTML='<option value="-1">🗺️ 기본 맵 (화면 방향 자동)</option>'
+    +maps.map((m,i)=>`<option value="${i}">${m.f&&m.f[1]>m.f[0]?'📱':'🖥️'} ${m.n} (커스텀)</option>`).join('');
 }
+let selectedMapField=null;
 $('#mapSel').onchange=e=>{
   const i=+e.target.value, maps=loadMaps();
   selectedMap=(i>=0&&maps[i])?maps[i].p:null;
   selectedMapName=(i>=0&&maps[i])?maps[i].n:'기본 맵';
+  selectedMapField=(i>=0&&maps[i])?(maps[i].f||LAND_FIELD):null;
   $('#btnDelMap').style.display=selectedMap?'block':'none';
   delMapArmed=0;
 };
@@ -2247,13 +2259,19 @@ $('#edSave').onclick=()=>{
   const p=[extendOut(editPts[1],editPts[0]),
     ...editPts,
     extendOut(editPts[editPts.length-2],editPts[editPts.length-1])];
-  maps.push({n:name,p});
+  maps.push({n:name,p,f:[FW,FH]});
   saveMaps(maps); refreshMapSel();
   $('#mapSel').value=String(maps.length-1); $('#mapSel').dispatchEvent(new Event('change'));
   SND.coin(); toast(`맵 "${name}" 저장! 시작 화면에서 선택됨`);
   show('start');
 };
-$('#btnEdit').onclick=()=>{ SND.click(); editPts=[]; $('#edName').value=''; show('edit'); };
+$('#btnEdit').onclick=()=>{
+  SND.click(); editPts=[]; $('#edName').value='';
+  // 에디터 보드도 화면 방향에 맞춤 (세로폰 = 세로 보드)
+  if(isPortraitView()) setField(...PORT_FIELD); else setField(...LAND_FIELD);
+  ecv._bw=-1; // 에디터 캔버스 변환 재계산
+  show('edit');
+};
 
 /* ============================== 입력 ============================== */
 function myActLocal(msg){ // 내 조작을 실행(호스트/솔로) 또는 전송(클라이언트)
@@ -2403,10 +2421,21 @@ $('#btnSell').onclick=()=>{ if(selTower==null)return; const e=myActLocal({t:'act
 $('#btnClose').onclick=()=>{ selTower=null; syncInfoPanel(); };
 
 /* ----- 시작/로비 버튼 ----- */
+function applyBoardChoice(){
+  // 커스텀 맵은 저장된 보드 크기, 기본 맵은 화면 방향에 맞는 보드
+  if(selectedMap){
+    const f=selectedMapField||LAND_FIELD;
+    setField(f[0],f[1]); setPath(selectedMap);
+  }else if(isPortraitView()){
+    setField(...PORT_FIELD); setPath(PORTRAIT_PATH);
+  }else{
+    setField(...LAND_FIELD); setPath(DEFAULT_PATH);
+  }
+}
 $('#btnSolo').onclick=()=>{
   net.mode='solo'; net.np=1; net.myPi=0; net.started=true;
   net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0};
-  if(selectedMap) setPath(selectedMap); else setPath(DEFAULT_PATH);
+  applyBoardChoice();
   initWorld(1); enterGame();
 };
 $('#btnHost').onclick=()=>startHost();
