@@ -2458,6 +2458,7 @@ function tryPlace(x,y){
   if(myMoney()<def.cost[0]){ toast('돈이 부족합니다'); return false; }
   const err=myActLocal({t:'act',a:'place',tt:selShop,x:Math.round(x),y:Math.round(y)});
   if(err){ toast(err); return false; }
+  selectShop(null); // 1클릭 1설치: 설치 후 선택 해제 (연속 설치는 다시 타워 선택)
   return true;
 }
 /* 캔버스 입력: 탭=선택 · 터치 배치(고스트+확정) · 드래그=화면 이동 · 핀치/휠=줌 */
