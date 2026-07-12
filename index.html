@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0b0e17">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>네온 팝 디펜스</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -72,13 +77,21 @@
     border-top:1px solid #202b47; overflow-x:auto; z-index:5;
   }
   .tbtn {
-    flex:1 0 auto; min-width:76px; padding:7px 4px; background:var(--panel2); border:2px solid #2c3a5e;
-    border-radius:10px; color:#eaf2ff; cursor:pointer; text-align:center; font-family:inherit;
+    flex:1 0 auto; min-width:82px; padding:14px 4px 6px; position:relative;
+    background:linear-gradient(180deg,#20294a 0%,#141c36 55%,#0e1424 100%);
+    border:2px solid #2c3a5e; border-radius:12px; color:#eaf2ff; cursor:pointer;
+    text-align:center; font-family:inherit; overflow:hidden;
   }
-  .tbtn .ic img { display:block; margin:0 auto; }
-  .tbtn .nm { font-size:11px; font-weight:700; }
-  .tbtn .co { font-size:11px; color:var(--acc); font-weight:700; }
-  .tbtn.sel { border-color:var(--acc); box-shadow:0 0 10px rgba(56,225,198,.4); }
+  .tbtn .num {
+    position:absolute; top:3px; left:4px; width:15px; height:15px; line-height:15px;
+    font-size:9.5px; font-weight:900; color:#dbe4f5; background:#0b0f1d;
+    border:1px solid #3a4668; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+  }
+  .tbtn .rr { position:absolute; top:3.5px; right:5px; font-size:8.5px; font-weight:900; letter-spacing:.5px; }
+  .tbtn .ic img { display:block; margin:0 auto; filter:drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
+  .tbtn .nm { font-size:10.5px; font-weight:800; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tbtn .co { font-size:11px; color:#ffd94d; font-weight:800; }
+  .tbtn.sel { box-shadow:0 0 12px rgba(56,225,198,.55), inset 0 0 14px rgba(56,225,198,.12); }
   .tbtn.poor { opacity:.45; }
 
   #infopanel {
@@ -272,6 +285,12 @@
   </div>
   <textarea class="savecode" id="loadCode" placeholder="여기에 저장코드를 붙여넣고 아래 버튼을 누르세요"></textarea>
   <button class="btn small" id="btnLoadSave">⬇ 불러오기 (현재 데이터를 덮어씁니다)</button>
+  <div class="sub" style="margin:8px 0 0">☁️ 클라우드 저장 — 내 ID: <b id="cloudId" style="color:var(--acc)">------</b></div>
+  <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center">
+    <button class="btn small" id="btnCloudUp">☁️ 업로드</button>
+    <input class="code" id="cloudLoadId" maxlength="8" placeholder="ID 입력" style="width:130px;margin:4px 0;padding:9px;font-size:14px;letter-spacing:3px">
+    <button class="btn small" id="btnCloudDown">⬇ 가져오기</button>
+  </div>
   <div class="netmsg" id="saveMsg"></div>
 </div>
 
@@ -390,28 +409,32 @@ function distToPath(x,y){
 }
 
 /* ============================== 데이터 ============================== */
+// 데미지 타입: 'p'=물리(다트·스나이퍼·폭탄) / 'm'=마법(얼음·전기·독·레이저)
+// physResist/magicResist: 해당 타입 피해를 그 비율만큼 감소 (0.7 = 30%만 받음)
 const EKEYS=['red','blue','green','yellow','purple','boss','metal','split'];
 const EDEFS={
-  red:   {hp:22,  spd:65,  rew:4,  dmg:1,  r:11, col:'#ff5c6c'},
-  blue:  {hp:40,  spd:80,  rew:6,  dmg:2,  r:12, col:'#5c8cff'},
-  green: {hp:95,  spd:52,  rew:9,  dmg:3,  r:14, col:'#52d273'},
-  yellow:{hp:34,  spd:125, rew:11, dmg:2,  r:10, col:'#ffd94d'},
-  purple:{hp:170, spd:58,  rew:18, dmg:4,  r:15, col:'#b06cff', slowResist:.5, regen:5},
-  boss:  {hp:1600,spd:30,  rew:150,dmg:25, r:26, col:'#ff8c3a', slowResist:.7, boss:true},
-  metal: {hp:135, spd:48,  rew:14, dmg:3,  r:13, col:'#9aa7bd', resist:.4, psnImmune:true},  // 받는 피해 40% 감소·독 면역
-  split: {hp:70,  spd:72,  rew:10, dmg:3,  r:14, col:'#ff8fd0', split:2},                     // 죽으면 빨강 2마리로 분열
+  red:   {name:'섀도우 스카웃', trait:'일반',  hp:22,  spd:65,  rew:4,  dmg:1,  r:11, col:'#b06cff'},
+  blue:  {name:'블리츠 러너',   trait:'질주',  hp:40,  spd:85,  rew:6,  dmg:2,  r:12, col:'#5c8cff'},
+  green: {name:'시즈 골렘',     trait:'공성',  hp:130, spd:48,  rew:9,  dmg:4,  r:15, col:'#8a9a5b'},
+  yellow:{name:'플라즈마 와이번',trait:'비행', hp:36,  spd:130, rew:11, dmg:2,  r:10, col:'#ffd94d'},
+  purple:{name:'볼트 스펙터',   trait:'마법체',hp:105, spd:60,  rew:18, dmg:4,  r:15, col:'#8fd8ff', slowResist:.5, regen:3, magicResist:1},  // 마법 완전 면역 → 물리로만 처치
+  boss:  {name:'오블리비언 타이탄',trait:'보스',hp:1900,spd:30, rew:150,dmg:25, r:26, col:'#ff8c3a', slowResist:.7, boss:true, physResist:.25, magicResist:.25},
+  metal: {name:'아이언 셸가드', trait:'중장갑',hp:105, spd:46,  rew:14, dmg:3,  r:13, col:'#9aa7bd', physResist:1},  // 물리 완전 면역 → 마법으로만 처치
+  split: {name:'톡식 크롤러',   trait:'분열',  hp:75,  spd:72,  rew:10, dmg:3,  r:14, col:'#7ddf64', split:2},
 };
 const TKEYS=['dart','sniper','bomb','ice','tesla','buff','poison','laser','bank'];
+// rar: 등급 / dtype: 'p' 물리, 'm' 마법 (저항 시스템과 상호작용 — 도감 참조)
+const RAR={rare:['레어','#3b82f6'],epic:['에픽','#a855f7'],legend:['레전드','#f5a623'],myth:['신화','#ff4d4d']};
 const TDEFS={
-  dart:  {name:'다트',    cost:[100,180,320],  dmg:[9,18,38],   range:[110,122,138], rate:[.75,.6,.45],  projSpd:420, desc:'가성비 기본 타워'},
-  sniper:{name:'스나이퍼',cost:[220,340,560],  dmg:[45,110,260],range:[240,285,340], rate:[1.8,1.6,1.35],projSpd:900, target:'strong', desc:'초장거리·강한 적 우선'},
-  bomb:  {name:'폭탄',    cost:[280,430,720],  dmg:[24,44,80],  range:[120,132,146], rate:[1.5,1.35,1.15],projSpd:260, splash:[55,66,82], desc:'광역 폭발 피해'},
-  ice:   {name:'얼음',    cost:[200,300,480],  dmg:[3,5,9],     range:[88,102,118],  rate:[1.2,1.1,1.0], slow:[.4,.5,.6], slowDur:[1.3,1.7,2.2], desc:'주변 적 전체 감속'},
-  tesla: {name:'전기',    cost:[350,530,880],  dmg:[13,26,52],  range:[130,145,162], rate:[.7,.62,.52],  chain:[3,4,6], desc:'번개가 여러 적 연쇄'},
-  buff:  {name:'버프',    cost:[300,500,800],  dmg:[0,0,0],     range:[100,116,132], rate:[0,0,0], dmgBuff:[.2,.35,.5], rngBuff:[.1,.18,.28], desc:'주변 타워 강화'},
-  poison:{name:'독',      cost:[180,280,450],  dmg:[4,8,14],    range:[100,112,126], rate:[1.1,1,.9],    projSpd:300, dot:[8,16,30], dotDur:3, desc:'중독시켜 지속 피해 (재생 카운터)', lock:true},
-  laser: {name:'레이저',  cost:[400,620,980],  dmg:[45,90,180], range:[140,155,170], rate:[0,0,0],       desc:'한 적에게 끊김 없는 광선 딜', lock:true},
-  bank:  {name:'은행',    cost:[350,550,900],  dmg:[0,0,0],     range:[0,0,0],       rate:[0,0,0], income:[45,95,170], desc:'웨이브 종료마다 소유자에게 수입', lock:true},
+  dart:  {name:'팬텀 스팅어',    rar:'epic',   dtype:'p', cost:[100,180,320],  dmg:[9,18,38],   range:[110,122,138], rate:[.75,.6,.45],  projSpd:420, desc:'빠른 연사의 물리 다트'},
+  sniper:{name:'데드아이 레인저',rar:'legend', dtype:'p', cost:[220,340,560],  dmg:[45,110,260],range:[240,285,340], rate:[1.8,1.6,1.35],projSpd:900, target:'strong', desc:'초장거리 물리 저격·강한 적 우선'},
+  bomb:  {name:'캐터클리즘 봄버',rar:'myth',   dtype:'p', cost:[280,430,720],  dmg:[24,44,80],  range:[120,132,146], rate:[1.5,1.35,1.15],projSpd:260, splash:[55,66,82], desc:'광역 물리 폭발'},
+  ice:   {name:'글래시얼 코어',  rar:'rare',   dtype:'m', cost:[200,300,480],  dmg:[3,5,9],     range:[88,102,118],  rate:[1.2,1.1,1.0], slow:[.4,.5,.6], slowDur:[1.3,1.7,2.2], desc:'주변 적 전체 감속 (마법)'},
+  tesla: {name:'아크 테슬라',    rar:'epic',   dtype:'m', cost:[380,560,920],  dmg:[12,24,46],  range:[130,145,162], rate:[.7,.62,.52],  chain:[3,4,6], desc:'번개 연쇄 (마법)'},
+  buff:  {name:'커맨드 비콘',    rar:'legend', dtype:'-', cost:[300,500,800],  dmg:[0,0,0],     range:[100,116,132], rate:[0,0,0], dmgBuff:[.2,.35,.5], rngBuff:[.1,.18,.28], desc:'주변 타워 강화'},
+  poison:{name:'베놈 하이브',    rar:'epic',   dtype:'m', cost:[180,280,450],  dmg:[4,8,14],    range:[100,112,126], rate:[1.1,1,.9],    projSpd:300, dot:[8,16,30], dotDur:3, desc:'중독 지속 피해 (마법·재생 카운터)', lock:true},
+  laser: {name:'프리즘 캐논',    rar:'myth',   dtype:'m', cost:[400,620,980],  dmg:[45,90,180], range:[140,155,170], rate:[0,0,0],       desc:'끊김 없는 마법 광선', lock:true},
+  bank:  {name:'골드 리저브',    rar:'legend', dtype:'-', cost:[350,550,900],  dmg:[0,0,0],     range:[0,0,0],       rate:[0,0,0], income:[45,95,170], desc:'웨이브 종료마다 소유자에게 수입', lock:true},
 };
 
 /* ============================== 특화 테크 (3강 후 A/B 분기) ============================== */
@@ -439,9 +462,9 @@ const SPECCOL={a:'#ffb347',b:'#b06cff'};
 
 /* ============================== 메타 진행 (젬·해금·퍽) ============================== */
 const SHOP_ITEMS=[
-  {id:'poison', kind:'tower', price:120, name:'독 타워',   desc:'적을 중독시켜 3초간 지속 피해. 재생하는 보라 풍선의 카운터'},
-  {id:'bank',   kind:'tower', price:180, name:'은행 타워', desc:'공격하지 않는 대신 웨이브가 끝날 때마다 소유자에게 돈 지급'},
-  {id:'laser',  kind:'tower', price:250, name:'레이저 타워', desc:'사거리 안 첫 번째 적에게 끊김 없는 고출력 광선'},
+  {id:'poison', kind:'tower', price:120, name:'베놈 하이브',   desc:'적을 중독시켜 3초간 지속 피해(마법). 재생하는 볼트 스펙터 카운터'},
+  {id:'bank',   kind:'tower', price:180, name:'골드 리저브', desc:'공격하지 않는 대신 웨이브가 끝날 때마다 소유자에게 돈 지급'},
+  {id:'laser',  kind:'tower', price:250, name:'프리즘 캐논', desc:'사거리 안 첫 번째 적에게 끊김 없는 고출력 마법 광선'},
   {id:'startMoney', kind:'perk', price:150, name:'퍽: 시작 자금 +100', desc:'매 게임 시작 돈이 100 증가 (본인에게 적용)'},
   {id:'baseHp',     kind:'perk', price:100, name:'퍽: 기지 체력 +25', desc:'기지 체력 100→125 (솔로/방장 게임에 적용, 전원 공유)'},
 ];
@@ -556,21 +579,27 @@ const MAXWAVE=30;
 function waveGroups(n){
   const g=[], gapMul=Math.max(.5,1-n*.012);
   const add=(type,count,gap)=>g.push({type,count,gap:gap*gapMul});
-  if(n%10===0){ add('green',6+n,.6); if(n>=20) add('metal',Math.floor(n/4),1.2); add('boss',Math.ceil(n/10),3.0); }
-  else{
+  if(n%10===0){
+    add('green',6+n,.55);
+    if(n>=20) add('metal',1+Math.floor(n/5),1.1);
+    if(n>=20) add('purple',1+Math.floor(n/5),1.1);
+    add('boss',Math.ceil(n/10),3.0);
+  }else{
     add('red',8+Math.floor(n*1.6),.55);
     if(n>=3) add('blue',3+n,.5);
     if(n>=6) add('green',2+Math.floor(n*.8),.7);
     if(n>=8) add('split',1+Math.floor(n*.4),.9);
     if(n>=9) add('yellow',3+Math.floor(n*.6),.4);
-    if(n>=11) add('metal',1+Math.floor(n*.35),1.0);
-    if(n>=13) add('purple',1+Math.floor(n*.4),1.0);
+    // 면역 몬스터: 물리/마법 한쪽만으론 못 막게 혼성 등장
+    if(n>=8) add('metal',1+Math.floor(n*.25),1.05);
+    if(n>=11) add('purple',1+Math.floor(n*.3),1.05);
   }
   return g;
 }
 function hpMul(w,np){
-  let m=(1+(w-1)*.09)*(1+(np-1)*.22);
-  if(w>30) m*=Math.pow(1.13,w-30); // 무한 모드: 지수 스케일링
+  // 초반 완만 → 15웨이브부터 가속 (전략 다양화 시간 확보 후 강해짐)
+  let m=(1+(w-1)*.095+Math.max(0,w-15)*.04)*(1+(np-1)*.25);
+  if(w>30) m*=Math.pow(1.14,w-30); // 무한 모드: 지수 스케일링
   return m;
 }
 
@@ -589,7 +618,7 @@ window.__ts=1;            // 디버그 배속
 function initWorld(np){
   world={
     phase:'prep', wave:1, endless:false, countdown:20, lives:100, pops:0,
-    money:Array.from({length:np},()=>350), np,
+    money:Array.from({length:np},()=>400), np,
     enemies:[], towers:[], projs:[], spawn:null,
     eid:1, tid:1, events:[], twDirty:true, snapTimer:0, overSent:false,
     speed:1, paused:false,
@@ -634,7 +663,7 @@ function updateSim(dt){
     const e=w.enemies[i], def=EDEFS[e.type];
     if(e.psn && e.psn.t>0){
       e.psn.t-=dt;
-      damageEnemy(e,e.psn.dps*dt);
+      damageEnemy(e,e.psn.dps*dt,'m');
       if(w.enemies[i]!==e) continue; // 중독으로 사망
     }
     let spd=e.spd;
@@ -675,7 +704,7 @@ function updateSim(dt){
         mult=1+Math.min(2,(t.ramp||0)*.5);
       }
       if(t.spec==='b'){ // 프리즘: 두 갈래 각 75%
-        damageEnemy(tgt,dmg*.75*dt);
+        damageEnemy(tgt,dmg*.75*dt,'m');
         let second=null,bv=-1;
         for(const e of w.enemies){
           if(e===tgt) continue;
@@ -683,9 +712,9 @@ function updateSim(dt){
           if(dist(t.x,t.y,p.x,p.y)>rng+EDEFS[e.type].r) continue;
           if(e.d>bv){ bv=e.d; second=e; }
         }
-        if(second) damageEnemy(second,dmg*.75*dt);
+        if(second) damageEnemy(second,dmg*.75*dt,'m');
       }else{
-        damageEnemy(tgt,dmg*mult*dt);
+        damageEnemy(tgt,dmg*mult*dt,'m');
       }
       continue;
     }
@@ -700,7 +729,7 @@ function updateSim(dt){
         const p=pointAt(e.d);
         if(dist(t.x,t.y,p.x,p.y)<=rng+EDEFS[e.type].r){
           hit=true; e.slow=sDur; e.slowAmt=sAmt;
-          damageEnemy(e,dmg);
+          damageEnemy(e,dmg,'m');
         }
       }
       if(hit){ t.cd=rate; emitFx(['i',t.x,t.y,Math.round(rng)]); }
@@ -714,7 +743,7 @@ function updateSim(dt){
       const hitSet=new Set([first.id]), pts=[t.x,t.y];
       let cur=first;
       const curP=pointAt(cur.d); pts.push(Math.round(curP.x),Math.round(curP.y));
-      damageEnemy(cur,dmg);
+      damageEnemy(cur,dmg,'m');
       for(let c=1;c<chainN;c++){
         const cp=pointAt(cur.d);
         let best=null,bd=95;
@@ -726,7 +755,7 @@ function updateSim(dt){
         if(!best) break;
         hitSet.add(best.id);
         const bp=pointAt(best.d); pts.push(Math.round(bp.x),Math.round(bp.y));
-        damageEnemy(best,dmg);
+        damageEnemy(best,dmg,'m');
         cur=best;
       }
       emitFx(['z',...pts]);
@@ -754,7 +783,7 @@ function updateSim(dt){
         const hp2=pointAt(tg.d);
         emitFx(['c',Math.round(hp2.x),Math.round(hp2.y)]);
       }
-      w.projs.push({x:t.x,y:t.y,eid:tg.id,kind:t.type,spd:def.projSpd,dmg:d2,
+      w.projs.push({x:t.x,y:t.y,eid:tg.id,kind:t.type,spd:def.projSpd,dmg:d2,dtype:def.dtype,
         splash:def.splash?def.splash[t.level]*(t.spec==='a'&&t.type==='bomb'?1.6:1):0,
         cluster:t.type==='bomb'&&t.spec==='b',
         pierce:t.type==='dart'&&t.spec==='b'?2:0, hitIds:null,
@@ -796,7 +825,7 @@ function updateSim(dt){
         }
       }else{
         if(p.dot&&!EDEFS[e.type].psnImmune) e.psn={dps:p.dot,t:p.dotDur,sp:p.dotSp?1:0}; // 중독 (갱신)
-        damageEnemy(e,p.dmg);
+        damageEnemy(e,p.dmg,p.dtype);
         if(p.pierce>0){ // 관통 다트: 다음 적으로 이어짐
           p.pierce--;
           if(!p.hitIds) p.hitIds=new Set();
@@ -833,12 +862,13 @@ function explode(x,y,r,dmg){
   emitFx(['x',Math.round(x),Math.round(y),Math.round(r)]);
   for(let i=world.enemies.length-1;i>=0;i--){
     const e=world.enemies[i], p=pointAt(e.d);
-    if(dist(x,y,p.x,p.y)<=r+EDEFS[e.type].r) damageEnemy(e,dmg);
+    if(dist(x,y,p.x,p.y)<=r+EDEFS[e.type].r) damageEnemy(e,dmg,'p');
   }
 }
-function damageEnemy(e,dmg){
+function damageEnemy(e,dmg,dt){
   const def=EDEFS[e.type];
-  if(def.resist) dmg*=1-def.resist;
+  if(dt==='p'&&def.physResist) dmg*=1-def.physResist;
+  else if(dt==='m'&&def.magicResist) dmg*=1-def.magicResist;
   e.hp-=dmg;
   if(e.hp<=0){
     const i=world.enemies.indexOf(e);
@@ -874,7 +904,7 @@ function beginWave(){
 }
 function waveCleared(){
   const w=world;
-  const bonus=70+w.wave*10;
+  const bonus=85+w.wave*13;
   for(let pi=0;pi<w.np;pi++) w.money[pi]+=bonus;
   // 은행 수입 (특화: 복리 성장 / 투자 이자)
   for(const t of w.towers){
@@ -1621,11 +1651,21 @@ function render(){
     // 광택
     ctx.beginPath(); ctx.ellipse(e.x-def.r*.32,by-def.r*.4,def.r*.18,def.r*.28,-.5,0,7);
     ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fill();
-    if(def.resist){ // 메탈: 금속 테두리 + 리벳
+    if(def.physResist>=1){ // 아이언 셸가드: 금속 테두리 + 물리 면역 방패
       ctx.beginPath(); ctx.ellipse(e.x,by,def.r*.85,def.r,0,0,7);
-      ctx.strokeStyle='#4d5870'; ctx.lineWidth=2; ctx.stroke();
+      ctx.strokeStyle='#4d5870'; ctx.lineWidth=2.5; ctx.stroke();
       ctx.beginPath(); ctx.arc(e.x+def.r*.4,by+def.r*.2,1.3,0,7);
       ctx.fillStyle='#e8eef7'; ctx.fill();
+      ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='#c8d2e4'; ctx.fillText('⛨',e.x+def.r*.75,by-def.r*.7);
+    }
+    if(def.magicResist>=1){ // 볼트 스펙터: 마법 면역 오라
+      const gk=.5+.3*Math.sin(tnow*5+e.id);
+      ctx.beginPath(); ctx.ellipse(e.x,by,def.r*.95,def.r*1.12,0,0,7);
+      ctx.strokeStyle=`rgba(143,216,255,${gk})`; ctx.lineWidth=1.5;
+      ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='#8fd8ff'; ctx.fillText('✦',e.x+def.r*.75,by-def.r*.7);
     }
     if(def.boss){
       const cy=by-def.r-5;
@@ -1880,15 +1920,17 @@ function syncPalette(){
   const pal=$('#palette');
   pal.innerHTML='';
   TKEYS.forEach((k,i)=>{
-    const d=TDEFS[k];
+    const d=TDEFS[k], rr=RAR[d.rar];
     const b=document.createElement('button');
     b.className='tbtn'; b.dataset.type=k;
+    b.style.borderColor=rr[1];
+    const head=`<span class="num">${i+1}</span><span class="rr" style="color:${rr[1]}">${rr[0]}</span>`;
     if(!hasT(k)){
       b.classList.add('poor');
-      b.innerHTML=`<div class="ic" style="font-size:24px;line-height:34px">🔒</div><div class="nm">${d.name}</div><div class="co">상점 해금</div>`;
+      b.innerHTML=`${head}<div class="ic" style="font-size:24px;line-height:34px">🔒</div><div class="nm">${d.name}</div><div class="co">상점 해금</div>`;
       b.onclick=()=>toast('🛒 상점에서 💎로 해금할 수 있습니다');
     }else{
-      b.innerHTML=`<div class="ic"><img src="${towerIconURL(k)}" width="34" height="34" alt="${d.name}"></div><div class="nm">${i+1}. ${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
+      b.innerHTML=`${head}<div class="ic"><img src="${towerIconURL(k)}" width="34" height="34" alt="${d.name}"></div><div class="nm">${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
       b.onclick=()=>{ selectShop(selShop===k?null:k); };
     }
     pal.appendChild(b);
@@ -1913,8 +1955,10 @@ function syncInfoPanel(){
   ipCache=key;
   ip.style.display='block';
   const specName=t.spec?` <span style="color:${SPECCOL[t.spec]}">★${SPECS[t.type][t.spec].n}</span>`:'';
-  $('#ipTitle').innerHTML=`<img src="${towerIconURL(t.type)}" width="20" height="20" style="vertical-align:-4px"> ${def.name} Lv.${t.level+1}${specName}`+(mine?'':` (${PNAMES[t.owner]} 소유)`);
-  let st=t.spec?SPECS[t.type][t.spec].d:def.desc;
+  const rr=RAR[def.rar];
+  const rarChip=`<span style="font-size:10px;border:1px solid ${rr[1]};color:${rr[1]};border-radius:6px;padding:0 4px;vertical-align:2px;margin-right:2px">${rr[0]}</span>`;
+  $('#ipTitle').innerHTML=`<img src="${towerIconURL(t.type)}" width="20" height="20" style="vertical-align:-4px"> ${rarChip}${def.name} Lv.${t.level+1}${specName}`+(mine?'':` (${PNAMES[t.owner]} 소유)`);
+  let st=(def.dtype==='p'?'⚔️물리 · ':def.dtype==='m'?'🔮마법 · ':'')+(t.spec?SPECS[t.type][t.spec].d:def.desc);
   if(t.type==='laser') st+=` · 초당 ${def.dmg[t.level]}`;
   else if(def.dmg[t.level]) st+=` · 피해 ${def.dmg[t.level]}`;
   if(def.dot) st+=` · 중독 초당 ${def.dot[t.level]}`;
@@ -2092,6 +2136,7 @@ function renderSaveScreen(){
     : '<div class="histRow"><span style="color:#5f6c8c">아직 기록이 없습니다 — 첫 게임을 플레이해보세요!</span></div>';
   $('#saveCode').value=exportSave();
   $('#loadCode').value=''; $('#saveMsg').textContent='';
+  $('#cloudId').textContent=cloudId();
 }
 $('#btnSave').onclick=()=>{ SND.click(); renderSaveScreen(); show('save'); };
 $('#btnSaveBack').onclick=()=>{ SND.click(); $('#gemBal').textContent=meta.gems; refreshMapSel(); show('start'); };
@@ -2114,31 +2159,81 @@ $('#btnLoadSave').onclick=()=>{
   }
 };
 
+/* ----- 클라우드 저장 (Vercel /api/cloud — Notion 백엔드) ----- */
+function cloudId(){
+  let id;
+  try{ id=localStorage.getItem('npd_cloud_id'); }catch(e){}
+  if(!id){
+    id=''; const CS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    for(let i=0;i<6;i++) id+=CS[Math.floor(Math.random()*CS.length)];
+    try{ localStorage.setItem('npd_cloud_id',id); }catch(e){}
+  }
+  return id;
+}
+function cloudMsg(ok,txt){ const m=$('#saveMsg'); m.style.color=ok?'#52d273':'var(--red)'; m.textContent=txt; }
+$('#btnCloudUp').onclick=async()=>{
+  SND.click(); cloudMsg(true,'☁️ 업로드 중...');
+  try{
+    const r=await fetch('/api/cloud',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({id:cloudId(),data:exportSave()})});
+    const j=await r.json();
+    if(r.ok) cloudMsg(true,`✓ 클라우드 저장 완료! ID: ${cloudId()} — 다른 기기에서 이 ID로 가져오세요`);
+    else cloudMsg(false,j.message||'서버가 아직 설정되지 않았습니다 (Vercel 배포에서만 지원)');
+  }catch(e){ cloudMsg(false,'클라우드 서버에 연결할 수 없습니다 (Vercel 배포에서만 지원)'); }
+};
+$('#btnCloudDown').onclick=async()=>{
+  SND.click();
+  const id=($('#cloudLoadId').value.trim()||cloudId()).toUpperCase();
+  cloudMsg(true,'⬇ 가져오는 중...');
+  try{
+    const r=await fetch('/api/cloud?id='+encodeURIComponent(id));
+    const j=await r.json();
+    if(!r.ok){ cloudMsg(false,j.error==='NOT_FOUND'?'해당 ID의 저장 데이터가 없습니다':(j.message||'서버 미설정')); return; }
+    const err=importSave(j.data);
+    if(err){ cloudMsg(false,err); return; }
+    renderSaveScreen();
+    $('#gemBal').textContent=meta.gems; refreshMapSel();
+    cloudMsg(true,`✓ 클라우드에서 불러왔습니다 (ID: ${id})`);
+    SND.coin();
+  }catch(e){ cloudMsg(false,'클라우드 서버에 연결할 수 없습니다 (Vercel 배포에서만 지원)'); }
+};
+
 /* ============================== 도감 ============================== */
-const ENAMES={red:'빨강',blue:'파랑',green:'초록',yellow:'노랑',purple:'보라',boss:'보스',metal:'메탈',split:'분열'};
-const ETRAIT={red:'기본 풍선',blue:'조금 빠르고 단단함',green:'느리지만 튼튼함',yellow:'매우 빠름',
-  purple:'체력 재생 · 감속 저항 — 독이 효과적',boss:'10웨이브마다 등장하는 거대 풍선',
-  metal:'받는 피해 40% 감소 · 독 면역',split:'터지면 빨강 풍선 2개로 분열'};
+function enemyTrait(e){
+  const t=[];
+  if(e.physResist) t.push(e.physResist>=1?'⚔️물리 면역!':`⚔️물리 ${Math.round(e.physResist*100)}% 저항`);
+  if(e.magicResist) t.push(e.magicResist>=1?'🔮마법 면역!':`🔮마법 ${Math.round(e.magicResist*100)}% 저항`);
+  if(e.regen) t.push('체력 재생');
+  if(e.slowResist) t.push('감속 저항');
+  if(e.split) t.push('죽으면 분열');
+  if(e.boss) t.push('10웨이브마다 등장');
+  if(e.spd>=120) t.push('매우 빠름');
+  return t.length?t.join(' · '):'특수 능력 없음';
+}
 function renderHelp(){
   let html='<div class="helpSec">🏰 타워 & 특화 (3강 후 A/B 중 택1)</div>';
   for(const k of TKEYS){
-    const d=TDEFS[k], s=SPECS[k];
-    html+=`<div class="helpRow"><img src="${towerIconURL(k)}" width="40" height="40">
-      <div class="hb"><div class="hn">${d.name} <span style="color:var(--acc)">💰${d.cost[0]}</span>${d.lock?' <span style="color:#b28dff">🛒상점 해금</span>':''}</div>
+    const d=TDEFS[k], s=SPECS[k], rr=RAR[d.rar];
+    const dt=d.dtype==='p'?'⚔️물리':d.dtype==='m'?'🔮마법':'🛠️지원';
+    html+=`<div class="helpRow" style="border-left:3px solid ${rr[1]}"><img src="${towerIconURL(k)}" width="40" height="40">
+      <div class="hb"><div class="hn"><span style="color:${rr[1]};font-size:10px">${rr[0]}</span> ${d.name} <span style="color:#ffd94d">💰${d.cost[0]}</span> <span style="color:var(--dim);font-size:10.5px">${dt}</span>${d.lock?' <span style="color:#b28dff">🛒해금</span>':''}</div>
       <div class="hd">${d.desc}</div>
       <div class="hs"><span style="color:#ffb347">⚡${s.a.n}</span> ${s.a.d} · <span style="color:#b06cff">🌀${s.b.n}</span> ${s.b.d}</div></div></div>`;
   }
-  html+='<div class="helpSec">🎈 적 풍선</div>';
+  html+='<div class="helpSec">👾 몬스터</div>';
   for(const k of EKEYS){
     const e=EDEFS[k];
     html+=`<div class="helpRow"><div class="eDot" style="background:${e.col}"></div>
-      <div class="hb"><div class="hn">${ENAMES[k]}</div><div class="hd">${ETRAIT[k]} · 체력 ${e.hp} · 새는 목숨 ${e.dmg}</div></div></div>`;
+      <div class="hb"><div class="hn">${e.name} <span style="color:var(--dim);font-size:10.5px">[${e.trait}]</span></div>
+      <div class="hd">${enemyTrait(e)} · 체력 ${e.hp} · 새는 목숨 ${e.dmg}</div></div></div>`;
   }
-  html+='<div class="helpSec">💡 팁</div><div class="helpRow"><div class="hb"><div class="hd">'
-    +'· 타워를 누르면 강화·특화·타겟 우선순위를 바꿀 수 있어요<br>'
-    +'· 버프 타워는 주변 타워를 강화하고, 은행은 웨이브마다 돈을 벌어줘요<br>'
-    +'· 웨이브를 일찍 시작하면 남은 초당 💰2의 보너스!<br>'
-    +'· 💎젬은 웨이브를 깰 때마다 쌓이고 상점에서 타워 해금·퍽 구매에 사용</div></div></div>';
+  html+='<div class="helpSec">💡 전략 팁</div><div class="helpRow"><div class="hb"><div class="hd">'
+    +'· <b style="color:#9aa7bd">아이언 셸가드</b>는 물리(스팅어·레인저·봄버)에 강함 → 마법 타워로!<br>'
+    +'· <b style="color:#8fd8ff">볼트 스펙터</b>는 마법(테슬라·캐논·하이브)에 강함 → 물리 타워로!<br>'
+    +'· 한 종류 타워만으로는 뚫립니다 — 물리+마법을 섞어 배치하세요<br>'
+    +'· 타워를 누르면 강화·특화·타겟 우선순위 설정 가능<br>'
+    +'· 커맨드 비콘은 주변 강화, 골드 리저브는 웨이브마다 수입<br>'
+    +'· 💎젬은 웨이브 클리어마다 적립 — 상점에서 타워 해금·퍽 구매</div></div></div>';
   $('#helpList').innerHTML=html;
 }
 $('#btnHelp').onclick=()=>{ SND.click(); renderHelp(); show('help'); };
@@ -2454,6 +2549,23 @@ metaLoad();
 $('#gemBal').textContent=meta.gems;
 refreshMapSel();
 syncMuteBtns();
+
+// PWA: 서비스 워커 등록 (홈 화면 설치 + 오프라인 솔로)
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+// 뒤로가기 보호: 실수로 뒤로가도 게임이 꺼지지 않음 (2초 내 두 번 = 종료)
+let backArmed=0;
+try{ history.pushState({npd:1},''); }catch(e){}
+window.addEventListener('popstate',()=>{
+  if(Date.now()-backArmed<2000){ history.back(); return; } // 진짜 종료
+  backArmed=Date.now();
+  try{ history.pushState({npd:1},''); }catch(e){}
+  toast('한 번 더 뒤로가기를 누르면 종료됩니다');
+});
+window.addEventListener('beforeunload',e=>{
+  if(screenName==='game'&&net.started){ e.preventDefault(); e.returnValue=''; }
+});
 
 /* ============================== 메인 루프 ============================== */
 let lastT=performance.now();
