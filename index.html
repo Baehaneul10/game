@@ -205,6 +205,41 @@
   .helpRow .hs { margin-top:3px; font-size:11.5px; line-height:1.5; }
   .eDot { width:20px; height:24px; border-radius:50% 50% 50% 50%/45% 45% 55% 55%; flex:none; margin-top:2px; }
 
+  /* 마이페이지 */
+  #deckGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; width:min(420px,92vw); margin:6px 0; }
+  .deckCard { position:relative; background:var(--panel); border:2px solid #2c3a5e; border-radius:11px;
+    padding:8px 4px 6px; text-align:center; cursor:pointer; font-family:inherit; color:#eaf2ff; }
+  .deckCard.inDeck { border-color:var(--acc); box-shadow:0 0 8px rgba(56,225,198,.35); }
+  .deckCard .dn { font-size:10.5px; font-weight:800; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .deckCard .badge { position:absolute; top:4px; right:5px; font-size:10px; font-weight:900; color:var(--acc); }
+  #towerLvList { width:min(460px,94vw); max-height:44vh; overflow-y:auto; margin:6px 0; }
+  .tlvRow { display:flex; gap:10px; align-items:center; background:var(--panel); border-radius:11px;
+    padding:9px 12px; margin:6px 0; }
+  .tlvRow .ti { flex:1; min-width:0; text-align:left; }
+  .tlvRow .tn { font-weight:800; font-size:13px; }
+  .tlvRow .ts { font-size:11px; color:var(--dim); margin-top:1px; }
+  .cardBar { height:14px; background:#0b0f1d; border-radius:8px; margin-top:4px; position:relative; overflow:hidden; border:1px solid #2c3a5e; }
+  .cardBar .fill { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,#8a6d1a,#ffd94d); border-radius:8px; }
+  .cardBar .txt { position:absolute; inset:0; text-align:center; font-size:10px; font-weight:900; line-height:14px; color:#fff; text-shadow:0 1px 2px #000; }
+  .upBtn { flex:none; padding:9px 12px; border-radius:9px; border:none; font-weight:800; font-size:12px;
+    cursor:pointer; background:linear-gradient(180deg,#ffb347,#e08a1e); color:#3a2503; font-family:inherit; }
+  .upBtn:disabled { background:#26314e; color:#6b7899; }
+  .lvChip { font-size:11px; font-weight:900; color:#ffb347; }
+
+  /* 일일 상점 */
+  #dailyGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:min(440px,94vw); margin:6px 0; }
+  .dSlot { position:relative; background:linear-gradient(180deg,#20294a,#0e1424); border:2px solid #3a4668;
+    border-radius:12px; padding:20px 6px 8px; text-align:center; }
+  .dSlot .disc { position:absolute; top:4px; left:6px; font-size:9.5px; font-weight:900; color:#ff6b6b; }
+  .dSlot .free { position:absolute; top:4px; right:6px; font-size:9.5px; font-weight:900; color:#52d273; }
+  .dSlot .dNm { font-size:11px; font-weight:800; margin-top:4px; }
+  .dSlot .dQty { font-size:10px; color:var(--dim); }
+  .dSlot button { margin-top:6px; width:100%; padding:7px 4px; border:none; border-radius:8px;
+    font-weight:900; font-size:11.5px; cursor:pointer; font-family:inherit;
+    background:linear-gradient(180deg,#ffd94d,#d9a418); color:#3a2503; }
+  .dSlot button:disabled { background:#26314e; color:#6b7899; }
+  .dSlot .strike { text-decoration:line-through; opacity:.55; font-size:10px; }
+
   /* 기록·저장 */
   #statGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:min(420px,92vw); margin:8px 0; }
   .statBox { background:var(--panel); border:1px solid #2c3a5e; border-radius:10px; padding:10px 6px; text-align:center; }
@@ -237,7 +272,7 @@
 <div id="scr-start" class="screen on">
   <h1 class="logo">네온 팝 디펜스</h1>
   <div class="sub">밀려오는 풍선을 타워로 막아라!<br>최대 4명이 각자 폰·PC로 함께 플레이</div>
-  <div class="gembar">💎 <b id="gemBal">0</b></div>
+  <div class="gembar">💎 <b id="gemBal">0</b> &nbsp;🪙 <b id="goldBal" style="color:#ffd94d">0</b></div>
   <div style="display:flex;gap:6px;align-items:center;width:min(320px,86vw)">
     <select class="mapsel" id="mapSel" style="flex:1;width:auto;margin:7px 0"></select>
     <button class="btn small" id="btnDelMap" style="display:none;margin:0;padding:11px 12px">🗑</button>
@@ -247,6 +282,7 @@
   <input class="code" id="inCode" maxlength="4" placeholder="초대 코드 입력" autocomplete="off">
   <button class="btn" id="btnJoin">🚪 코드로 참가</button>
   <div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap">
+    <button class="btn small" id="btnMy">👤 마이페이지</button>
     <button class="btn small" id="btnShop">🛒 상점</button>
     <button class="btn small" id="btnEdit">🗺️ 맵 에디터</button>
     <button class="btn small" id="btnSave">📜 기록·저장</button>
@@ -263,6 +299,17 @@
   <div class="gembar">보유 💎 <b id="gemBal2">0</b></div>
   <div id="shopList"></div>
   <button class="btn small" id="btnShopBack">← 돌아가기</button>
+</div>
+
+<!-- 마이페이지 -->
+<div id="scr-my" class="screen">
+  <h1 class="logo" style="font-size:24px">👤 마이페이지</h1>
+  <div class="gembar">💎 <b id="myGems">0</b> &nbsp; 🪙 <b id="myGold" style="color:#ffd94d">0</b></div>
+  <div class="helpSec" style="margin-top:0">🎴 출전 덱 <span id="deckCount"></span>/6 — 카드를 눌러 넣고 빼기</div>
+  <div id="deckGrid"></div>
+  <div class="helpSec">⬆ 타워 영구 강화 — 카드는 상점에서, 골드는 게임 보상으로</div>
+  <div id="towerLvList"></div>
+  <button class="btn small" id="btnMyBack">← 돌아가기</button>
 </div>
 
 <!-- 도감 (도움말) -->
@@ -332,7 +379,7 @@
   <div id="wavePrev"></div>
   <div id="cwrap">
     <canvas id="cv"></canvas>
-    <div id="hint">1~9: 타워 선택 · 클릭/터치: 설치 · ESC: 취소 · 스페이스: 웨이브 시작</div>
+    <div id="hint">1~6: 덱 타워 선택 · 클릭/터치: 설치 · ESC: 취소 · 스페이스: 웨이브 시작</div>
     <div id="placeConfirm"><button id="pcOk">✓ 설치</button><button id="pcNo">✕ 취소</button></div>
     <div id="infopanel">
       <div class="ttl" id="ipTitle"></div>
@@ -426,14 +473,14 @@ const TKEYS=['dart','sniper','bomb','ice','tesla','buff','poison','laser','bank'
 // rar: 등급 / dtype: 'p' 물리, 'm' 마법 (저항 시스템과 상호작용 — 도감 참조)
 const RAR={rare:['레어','#3b82f6'],epic:['에픽','#a855f7'],legend:['레전드','#f5a623'],myth:['신화','#ff4d4d']};
 const TDEFS={
-  dart:  {name:'팬텀 스팅어',    rar:'epic',   dtype:'p', cost:[100,180,320],  dmg:[9,18,38],   range:[110,122,138], rate:[.75,.6,.45],  projSpd:420, desc:'빠른 연사의 물리 다트'},
-  sniper:{name:'데드아이 레인저',rar:'legend', dtype:'p', cost:[220,340,560],  dmg:[45,110,260],range:[240,285,340], rate:[1.8,1.6,1.35],projSpd:900, target:'strong', desc:'초장거리 물리 저격·강한 적 우선'},
-  bomb:  {name:'캐터클리즘 봄버',rar:'myth',   dtype:'p', cost:[280,430,720],  dmg:[24,44,80],  range:[120,132,146], rate:[1.5,1.35,1.15],projSpd:260, splash:[55,66,82], desc:'광역 물리 폭발'},
-  ice:   {name:'글래시얼 코어',  rar:'rare',   dtype:'m', cost:[200,300,480],  dmg:[3,5,9],     range:[88,102,118],  rate:[1.2,1.1,1.0], slow:[.4,.5,.6], slowDur:[1.3,1.7,2.2], desc:'주변 적 전체 감속 (마법)'},
-  tesla: {name:'아크 테슬라',    rar:'epic',   dtype:'m', cost:[380,560,920],  dmg:[12,24,46],  range:[130,145,162], rate:[.7,.62,.52],  chain:[3,4,6], desc:'번개 연쇄 (마법)'},
+  dart:  {name:'팬텀 스팅어',    rar:'epic',   dtype:'p', cost:[100,180,320],  dmg:[7,14,30],   range:[110,122,138], rate:[.75,.6,.45],  projSpd:420, desc:'빠른 연사의 물리 다트'},
+  sniper:{name:'데드아이 레인저',rar:'legend', dtype:'p', cost:[220,340,560],  dmg:[36,88,208], range:[240,285,340], rate:[1.8,1.6,1.35],projSpd:900, target:'strong', desc:'초장거리 물리 저격·강한 적 우선'},
+  bomb:  {name:'캐터클리즘 봄버',rar:'myth',   dtype:'p', cost:[280,430,720],  dmg:[19,35,64],  range:[120,132,146], rate:[1.5,1.35,1.15],projSpd:260, splash:[55,66,82], desc:'광역 물리 폭발'},
+  ice:   {name:'글래시얼 코어',  rar:'rare',   dtype:'m', cost:[200,300,480],  dmg:[2,4,7],     range:[88,102,118],  rate:[1.2,1.1,1.0], slow:[.4,.5,.6], slowDur:[1.3,1.7,2.2], desc:'주변 적 전체 감속 (마법)'},
+  tesla: {name:'아크 테슬라',    rar:'epic',   dtype:'m', cost:[380,560,920],  dmg:[10,19,37],  range:[130,145,162], rate:[.7,.62,.52],  chain:[3,4,6], desc:'번개 연쇄 (마법)'},
   buff:  {name:'커맨드 비콘',    rar:'legend', dtype:'-', cost:[300,500,800],  dmg:[0,0,0],     range:[100,116,132], rate:[0,0,0], dmgBuff:[.2,.35,.5], rngBuff:[.1,.18,.28], desc:'주변 타워 강화'},
-  poison:{name:'베놈 하이브',    rar:'epic',   dtype:'m', cost:[180,280,450],  dmg:[4,8,14],    range:[100,112,126], rate:[1.1,1,.9],    projSpd:300, dot:[8,16,30], dotDur:3, desc:'중독 지속 피해 (마법·재생 카운터)', lock:true},
-  laser: {name:'프리즘 캐논',    rar:'myth',   dtype:'m', cost:[400,620,980],  dmg:[45,90,180], range:[140,155,170], rate:[0,0,0],       desc:'끊김 없는 마법 광선', lock:true},
+  poison:{name:'베놈 하이브',    rar:'epic',   dtype:'m', cost:[180,280,450],  dmg:[3,6,11],    range:[100,112,126], rate:[1.1,1,.9],    projSpd:300, dot:[6,13,24], dotDur:3, desc:'중독 지속 피해 (마법·재생 카운터)', lock:true},
+  laser: {name:'프리즘 캐논',    rar:'myth',   dtype:'m', cost:[400,620,980],  dmg:[36,72,144], range:[140,155,170], rate:[0,0,0],       desc:'끊김 없는 마법 광선', lock:true},
   bank:  {name:'골드 리저브',    rar:'legend', dtype:'-', cost:[350,550,900],  dmg:[0,0,0],     range:[0,0,0],       rate:[0,0,0], income:[45,95,170], desc:'웨이브 종료마다 소유자에게 수입', lock:true},
 };
 
@@ -468,13 +515,26 @@ const SHOP_ITEMS=[
   {id:'startMoney', kind:'perk', price:150, name:'퍽: 시작 자금 +100', desc:'매 게임 시작 돈이 100 증가 (본인에게 적용)'},
   {id:'baseHp',     kind:'perk', price:100, name:'퍽: 기지 체력 +25', desc:'기지 체력 100→125 (솔로/방장 게임에 적용, 전원 공유)'},
 ];
-const meta={gems:0, owned:{}, stats:{g:0,p:0,w:0,ge:0}, hist:[]};
+const meta={gems:0, gold:0, owned:{}, cards:{}, tlv:{}, deck:null, stats:{g:0,p:0,w:0,ge:0}, hist:[]};
 function metaLoad(){
   try{ const m=JSON.parse(localStorage.getItem('npd_meta')||'{}');
-    meta.gems=m.gems|0; meta.owned=m.owned||{};
+    meta.gems=m.gems|0; meta.gold=m.gold|0; meta.owned=m.owned||{};
+    meta.cards=m.cards||{}; meta.tlv=m.tlv||{};
+    meta.deck=Array.isArray(m.deck)?m.deck:null;
     meta.stats=Object.assign({g:0,p:0,w:0,ge:0},m.stats);
     meta.hist=Array.isArray(m.hist)?m.hist:[];
   }catch(e){}
+}
+// 영구 강화 레벨 (마이페이지) — 레벨당 피해 +8%
+function tlvOf(k){ return meta.tlv[k]||1; }
+function permMulOf(lv){ return 1+.08*((lv||1)-1); }
+function upNeedCards(lv){ return lv*10; }      // 다음 레벨에 필요한 카드
+function upCostGold(lv){ return lv*300; }      // 다음 레벨에 필요한 골드
+// 출전 덱 (최대 6타워)
+function getDeck(){
+  let d=(meta.deck||TKEYS.slice(0,6)).filter(k=>TDEFS[k]&&hasT(k));
+  if(!d.length) d=TKEYS.filter(k=>hasT(k)).slice(0,6);
+  return d.slice(0,6);
 }
 function metaSave(){ try{ localStorage.setItem('npd_meta',JSON.stringify(meta)); }catch(e){} }
 function hasT(k){ return !TDEFS[k].lock || meta.owned[k]; }
@@ -491,10 +551,14 @@ function gameModeLabel(){
   if(net.mode==='host') return net.np+'인 멀티';
   return net.np+'인 참가';
 }
+let sessionGold=0;
 function recordGame(result,wave,pops){
   if(sessionRecorded) return;
   sessionRecorded=true;
   meta.stats.g++; meta.stats.p+=pops;
+  // 🪙 골드 보상: 팝·도달 웨이브 기반 + 승리 보너스 (영구 강화 재화)
+  sessionGold=Math.round(pops*.4+wave*22)+(result==='won'?400:0);
+  meta.gold+=sessionGold;
   const d=new Date();
   meta.hist.unshift({d:(d.getMonth()+1)+'/'+d.getDate(),w:wave,p:pops,r:result,m:gameModeLabel()});
   meta.hist=meta.hist.slice(0,15);
@@ -626,7 +690,7 @@ function initWorld(np){
   // 퍽 적용 (시작 자금: 해당 플레이어 / 기지 체력: 방장·솔로 소유 시 전원 공유)
   for(let pi=0;pi<np;pi++) if(net.perks&&net.perks[pi]&&net.perks[pi].sm) world.money[pi]+=100;
   if(net.perks&&net.perks[0]&&net.perks[0].hp) world.lives+=25;
-  effects=[]; selShop=null; selTower=null; flash=0; sessionGems=0; sessionRecorded=false;
+  effects=[]; selShop=null; selTower=null; flash=0; sessionGems=0; sessionGold=0; sessionRecorded=false;
   if(typeof AIM!=='undefined') AIM.clear();
 }
 
@@ -682,7 +746,7 @@ function updateSim(dt){
     const def=TDEFS[t.type];
     if(t.type==='buff'||t.type==='bank') continue;
     let rng=def.range[t.level]*(1+t.bRng);
-    let dmg=def.dmg[t.level]*(1+t.bDmg);
+    let dmg=def.dmg[t.level]*(1+t.bDmg)*(t.permMul||1);
     let rate=def.rate[t.level]*(1-(t.bRate||0));
     const mode=t.tmode===1?'strong':(t.tmode===2?'last':(def.target||'first'));
     // 특화 스탯 보정
@@ -787,7 +851,7 @@ function updateSim(dt){
         splash:def.splash?def.splash[t.level]*(t.spec==='a'&&t.type==='bomb'?1.6:1):0,
         cluster:t.type==='bomb'&&t.spec==='b',
         pierce:t.type==='dart'&&t.spec==='b'?2:0, hitIds:null,
-        dot:def.dot?def.dot[t.level]*(1+t.bDmg)*(t.spec==='a'?2.5:1):0,
+        dot:def.dot?def.dot[t.level]*(1+t.bDmg)*(t.permMul||1)*(t.spec==='a'?2.5:1):0,
         dotDur:def.dotDur||0, dotSp:t.type==='poison'&&t.spec==='b'});
       if(net.mode==='host') w.events.push(['f',Math.round(t.x),Math.round(t.y),tg.id,TKEYS.indexOf(t.type)]);
     }
@@ -909,9 +973,10 @@ function waveCleared(){
   // 은행 수입 (특화: 복리 성장 / 투자 이자)
   for(const t of w.towers){
     if(t.type!=='bank') continue;
-    let inc=TDEFS.bank.income[t.level];
+    let inc=TDEFS.bank.income[t.level]*(t.permMul||1);
     if(t.spec==='a'){ t.incMul=(t.incMul||1)*1.05; inc=Math.round(inc*t.incMul); }
     else if(t.spec==='b'&&t.owner<w.np) inc=Math.round(inc*.5)+Math.min(200,Math.floor(w.money[t.owner]*.1));
+    else inc=Math.round(inc);
     if(t.owner<w.np) w.money[t.owner]+=inc;
     emitFx(['m',t.x,t.y,inc]);
   }
@@ -972,7 +1037,9 @@ function doPlace(pi,type,x,y){
   if(!placeable(x,y)) return '설치할 수 없는 위치입니다';
   if(w.money[pi]<def.cost[0]) return '돈이 부족합니다';
   w.money[pi]-=def.cost[0];
-  w.towers.push({id:w.tid++,type,level:0,x:Math.round(x),y:Math.round(y),owner:pi,cd:0,spent:def.cost[0],bDmg:0,bRng:0,bRate:0,spec:null,tmode:0});
+  // 영구 강화(마이페이지 타워 레벨) 반영 — 설치 시점의 소유자 레벨 캡처
+  const plv=(net.perks[pi]&&net.perks[pi].tlv&&net.perks[pi].tlv[type])||1;
+  w.towers.push({id:w.tid++,type,level:0,x:Math.round(x),y:Math.round(y),owner:pi,cd:0,spent:def.cost[0],bDmg:0,bRng:0,bRate:0,spec:null,tmode:0,plv,permMul:permMulOf(plv)});
   recomputeBuffs(); w.twDirty=true;
   emitFx(['bd',Math.round(x),Math.round(y),pi]); // 설치 완료 펄스
   return null;
@@ -1151,7 +1218,7 @@ function broadcast(msg){
 }
 function handleClientMsg(pi,d){
   if(!d) return;
-  if(d.t==='meta'){ net.perks[pi]={sm:d.sm?1:0}; return; } // 참가자 퍽 (시작 전 수신)
+  if(d.t==='meta'){ net.perks[pi]={sm:d.sm?1:0,tlv:d.tlv||{}}; return; } // 참가자 퍽+강화 (시작 전 수신)
   if(d.t!=='act'||!net.started||!world) return;
   let err=null;
   if(d.a==='place') err=doPlace(pi,d.tt,d.x,d.y);
@@ -1169,7 +1236,7 @@ function handleHostMsg(d){
   switch(d.t){
     case 'hi':
       net.myPi=d.pi;
-      try{ net.hostConn.send({t:'meta',sm:meta.owned.startMoney?1:0}); }catch(e){}
+      try{ net.hostConn.send({t:'meta',sm:meta.owned.startMoney?1:0,tlv:meta.tlv}); }catch(e){}
       showLobby(); break;
     case 'full': $('#startMsg').textContent=d.m; try{net.hostConn.close();}catch(e){} net.mode='solo'; break;
     case 'lobby': cState.pis=d.pis; renderLobby(); break;
@@ -1178,14 +1245,14 @@ function handleHostMsg(d){
       if(d.fld) setField(d.fld[0],d.fld[1]);
       if(d.map) setPath(d.map);
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
-      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionRecorded=false;
+      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionGold=0; sessionRecorded=false;
       effects=[]; selShop=null; selTower=null; AIM.clear();
       enterGame(); break;
     case 's': clientSnapshot(d); break;
     case 'no': toast(d.m); break;
     case 'reset':
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
-      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionRecorded=false;
+      cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionGold=0; sessionRecorded=false;
       effects=[]; selShop=null; selTower=null; AIM.clear(); hideOverlay(); syncPalette(); break;
     case 'cont': hideOverlay(); break;
   }
@@ -1487,6 +1554,39 @@ function drawTowerArt(g,type,level,ownerCol,aim,time,spec){
   }
   g.restore();
 }
+// 일러스트 스프라이트 타워 (바닥판+소유자 링은 벡터, 본체는 3D 일러스트 빌보드)
+function drawTowerSprite(g,t,time){
+  const ownerCol=PCOLORS[t.owner]||'#888';
+  // 바닥판 (눕힘)
+  g.save(); g.scale(1,SQ);
+  g.beginPath(); g.ellipse(0,3,18,15,0,0,7); g.fillStyle='rgba(0,0,0,.45)'; g.fill();
+  g.beginPath(); g.arc(0,0,15,0,7);
+  const bg=g.createLinearGradient(0,-15,0,15);
+  bg.addColorStop(0,'#2e3c62'); bg.addColorStop(1,'#111830');
+  g.fillStyle=bg; g.fill();
+  g.strokeStyle='#090d19'; g.lineWidth=1.5; g.stroke();
+  g.beginPath(); g.arc(0,0,17,0,7); g.strokeStyle=ownerCol; g.lineWidth=2.2; g.stroke();
+  if(t.spec){ // 특화 오라
+    const pk=(time%1.4)/1.4;
+    g.globalAlpha=(1-pk)*.55;
+    g.beginPath(); g.arc(0,0,18+pk*8,0,7);
+    g.strokeStyle=SPECCOL[t.spec]; g.lineWidth=2; g.stroke();
+    g.globalAlpha=1;
+  }
+  g.restore();
+  // 본체: 원형 클리핑된 일러스트 (강화·특화 시 커짐)
+  const s=(1+t.level*.09)*(t.spec?1.07:1), R=15*s, cy=-12*s;
+  const img=TOWER_IMGS[t.type];
+  g.save();
+  g.beginPath(); g.arc(0,cy,R,0,7); g.clip();
+  g.drawImage(img,-R,cy-R,R*2,R*2);
+  g.restore();
+  // 링 (등급색 + 소유자색 이중)
+  g.beginPath(); g.arc(0,cy,R,0,7);
+  g.strokeStyle=RAR[TDEFS[t.type].rar][1]; g.lineWidth=2; g.stroke();
+  g.beginPath(); g.arc(0,cy,R+2,0,7);
+  g.strokeStyle=ownerCol; g.lineWidth=1.2; g.globalAlpha=.8; g.stroke(); g.globalAlpha=1;
+}
 const AIM=new Map();
 let lastDt=.016;
 function aimFor(t,enemies){
@@ -1584,6 +1684,18 @@ function enemyPortraitURL(k){
 }
 // 외부 아트 우선 <img> 생성 (onerror 시 캔버스 초상화로 대체)
 const ART_V=2; // 아트 교체 시 +1 (캐시 무효화)
+// 인게임 맵용 타워 스프라이트 프리로드 (일러스트가 있으면 맵 위 타워도 그 이미지로)
+const TOWER_IMGS={};
+TKEYS.forEach(k=>{
+  const im=new Image();
+  im.onerror=()=>{ im._err=true; };
+  im.src='art/tower-'+k+'.jpg?v='+ART_V;
+  TOWER_IMGS[k]=im;
+});
+function spriteReady(k){
+  const im=TOWER_IMGS[k];
+  return im&&!im._err&&im.complete&&im.naturalWidth>0;
+}
 function portraitImg(kind,k,w,h,style){
   const fbFn=kind==='tower'?'tpt':'ept';
   return `<img src="art/${kind}-${k}.jpg?v=${ART_V}" onerror="this.onerror=()=>{this.onerror=null;this.src=NPD.${fbFn}('${k}')};this.src='art/${kind}-${k}.png?v=${ART_V}'" width="${w}" height="${h}" style="object-fit:cover;border-radius:8px;${style||''}" alt="${k}">`;
@@ -1687,7 +1799,8 @@ function render(){
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const drawTowerObj=t=>{
     ctx.save(); ctx.translate(t.x,projY(t.y));
-    drawTowerArt(ctx,t.type,t.level,PCOLORS[t.owner]||'#888',aimFor(t,enemies),tnow,t.spec);
+    if(spriteReady(t.type)) drawTowerSprite(ctx,t,tnow);
+    else drawTowerArt(ctx,t.type,t.level,PCOLORS[t.owner]||'#888',aimFor(t,enemies),tnow,t.spec);
     ctx.restore();
     if(t.spec){ // 특화: 별 마크
       const sy=projY(t.y)+15;
@@ -1866,7 +1979,8 @@ function render(){
     }
     ctx.restore();
     ctx.save(); ctx.translate(gp.x,projY(gp.y)); ctx.globalAlpha=.75;
-    drawTowerArt(ctx,selShop,0,ok?'#38e1c6':'#ff5c6c',-2.2,tnow);
+    if(spriteReady(selShop)) drawTowerSprite(ctx,{type:selShop,level:0,owner:net.myPi,spec:null},tnow);
+    else drawTowerArt(ctx,selShop,0,ok?'#38e1c6':'#ff5c6c',-2.2,tnow);
     ctx.restore(); ctx.globalAlpha=1;
   }
 
@@ -1990,20 +2104,16 @@ function syncHUD(force){
 function syncPalette(){
   const pal=$('#palette');
   pal.innerHTML='';
-  TKEYS.forEach((k,i)=>{
+  // 출전 덱(마이페이지에서 편성한 최대 6개)만 표시
+  getDeck().forEach((k,i)=>{
     const d=TDEFS[k], rr=RAR[d.rar];
     const b=document.createElement('button');
     b.className='tbtn'; b.dataset.type=k;
     b.style.borderColor=rr[1];
-    const head=`<span class="num">${i+1}</span><span class="rr" style="color:${rr[1]}">${rr[0]}</span>`;
-    if(!hasT(k)){
-      b.classList.add('poor');
-      b.innerHTML=`${head}<div class="ic" style="position:relative">${portraitImg('tower',k,62,52,'filter:grayscale(1) brightness(.5)')}<span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:20px">🔒</span></div><div class="nm">${d.name}</div><div class="co">상점 해금</div>`;
-      b.onclick=()=>toast('🛒 상점에서 💎로 해금할 수 있습니다');
-    }else{
-      b.innerHTML=`${head}<div class="ic">${portraitImg('tower',k,62,52)}</div><div class="nm">${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
-      b.onclick=()=>{ selectShop(selShop===k?null:k); };
-    }
+    const lv=tlvOf(k);
+    const head=`<span class="num">${i+1}</span><span class="rr" style="color:${rr[1]}">${rr[0]}${lv>1?' ★'+lv:''}</span>`;
+    b.innerHTML=`${head}<div class="ic">${portraitImg('tower',k,62,52)}</div><div class="nm">${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
+    b.onclick=()=>{ selectShop(selShop===k?null:k); };
     pal.appendChild(b);
   });
 }
@@ -2092,14 +2202,14 @@ function showOverlay(kind){
   if(kind==='over'){
     $('#ovTitle').textContent='💥 게임 오버';
     $('#ovTitle').style.color='var(--red)';
-    $('#ovBody').innerHTML=`웨이브 <b>${wave}</b> 도달 · 풍선 <b>${pops}</b>개 터뜨림<br>최고 기록: 웨이브 <b>${loadBest()}</b><br><span style="color:#b28dff">💎 +${sessionGems} 획득 (보유 ${meta.gems})</span>`;
+    $('#ovBody').innerHTML=`웨이브 <b>${wave}</b> 도달 · 풍선 <b>${pops}</b>개 터뜨림<br>최고 기록: 웨이브 <b>${loadBest()}</b><br><span style="color:#b28dff">💎 +${sessionGems}</span> · <span style="color:#ffd94d">🪙 +${sessionGold}</span> 획득<br><span style="font-size:12px;color:#8b97b3">골드로 마이페이지에서 타워를 영구 강화하세요!</span>`;
     saveBest(wave);
     if(isBoss) addOvBtn('🔄 다시 시작',true,restartGame);
     else $('#ovBody').innerHTML+='<br><span style="font-size:13px">방장이 다시 시작할 수 있습니다</span>';
   }else if(kind==='won'){
     $('#ovTitle').textContent='🏆 승리!';
     $('#ovTitle').style.color='var(--acc)';
-    $('#ovBody').innerHTML=`${MAXWAVE}웨이브를 모두 막았습니다!<br>풍선 <b>${pops}</b>개 터뜨림 · 최고 기록: 웨이브 <b>${loadBest()}</b><br><span style="color:#b28dff">💎 +${sessionGems} 획득 (보유 ${meta.gems})</span>`;
+    $('#ovBody').innerHTML=`${MAXWAVE}웨이브를 모두 막았습니다!<br>풍선 <b>${pops}</b>개 터뜨림 · 최고 기록: 웨이브 <b>${loadBest()}</b><br><span style="color:#b28dff">💎 +${sessionGems}</span> · <span style="color:#ffd94d">🪙 +${sessionGold}</span> 획득`;
     saveBest(wave);
     if(isBoss){
       addOvBtn('♾ 무한 모드 계속',true,continueEndless);
@@ -2126,7 +2236,7 @@ function saveBest(w){ try{ if(w>loadBest()) localStorage.setItem('npd_best',w); 
 /* ============================== 화면 전환 ============================== */
 function show(name){
   screenName=name;
-  ['start','lobby','game','shop','edit','save','help'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
+  ['start','lobby','game','shop','edit','save','help','my'].forEach(n=>$('#scr-'+n).classList.toggle('on',n===name));
 }
 function showLobby(){
   show('lobby');
@@ -2160,7 +2270,7 @@ function beginHostGame(){
   // 참가자 pi 재배열 없이 그대로 사용 (money 배열은 최대 pi+1 크기)
   const maxPi=Math.max(0,...Object.keys(net.conns).map(Number));
   net.np=Math.max(net.np,maxPi+1);
-  net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0};
+  net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0,tlv:meta.tlv};
   applyBoardChoice();
   initWorld(net.np);
   for(const pi in net.conns) net.conns[pi].send({t:'start',np:net.np,pis:activePis(),map:PATH,fld:[FW,FH]});
@@ -2169,8 +2279,40 @@ function beginHostGame(){
 
 /* ============================== 상점 ============================== */
 function renderShop(){
-  $('#gemBal2').textContent=meta.gems;
+  $('#gemBal2').textContent=meta.gems+' · 🪙 '+meta.gold;
   const list=$('#shopList'); list.innerHTML='';
+  // ---- 오늘의 상점 (매일 자정 리셋) ----
+  const st=shopStateLoad(), slots=dailySlots();
+  const head=document.createElement('div');
+  head.className='helpSec';
+  head.style.marginTop='0';
+  head.innerHTML=`⏰ 오늘의 상점 — <span style="color:#ffd94d">${msToMidnight()} 후 리셋</span>`;
+  list.appendChild(head);
+  const grid=document.createElement('div');
+  grid.id='dailyGrid';
+  for(const s of slots){
+    const bought=!!st.b[s.id];
+    const cell=document.createElement('div');
+    cell.className='dSlot';
+    let img,nm,qty;
+    if(s.kind==='gold'){ img=`<div style="font-size:34px;line-height:48px">🪙</div>`; nm='골드 주머니'; qty=`🪙${s.n}`; }
+    else if(s.kind==='pack'){ img=`<div style="font-size:34px;line-height:48px">🎁</div>`; nm='랜덤 카드 팩'; qty=`🎴 ${s.n}장 (랜덤)`; }
+    else{ img=portraitImg('tower',s.tower,52,48); nm=TDEFS[s.tower].name+' 카드'; qty=`🎴 ${s.n}장`; }
+    const priceHtml=s.free?'무료':(s.kind==='gold'?`💎${s.gem}`:(s.disc?`<span class="strike">🪙${s.orig}</span> 🪙${s.price}`:`🪙${s.price}`));
+    cell.innerHTML=`${s.disc?`<span class="disc">${s.disc}% 할인</span>`:''}${s.free?'<span class="free">무료</span>':''}
+      ${img}<div class="dNm">${nm}</div><div class="dQty">${qty}</div>`;
+    const btn=document.createElement('button');
+    btn.innerHTML=bought?'구매 완료':priceHtml;
+    btn.disabled=bought;
+    btn.onclick=()=>buySlot(s);
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  }
+  list.appendChild(grid);
+  const head2=document.createElement('div');
+  head2.className='helpSec';
+  head2.textContent='💎 영구 해금 (한 번 사면 계속)';
+  list.appendChild(head2);
   for(const it of SHOP_ITEMS){
     const owned=!!meta.owned[it.id];
     const card=document.createElement('div'); card.className='shopCard';
@@ -2193,7 +2335,7 @@ function renderShop(){
   }
 }
 $('#btnShop').onclick=()=>{ SND.click(); renderShop(); show('shop'); };
-$('#btnShopBack').onclick=()=>{ SND.click(); $('#gemBal').textContent=meta.gems; show('start'); };
+$('#btnShopBack').onclick=()=>{ SND.click(); syncCurrency(); show('start'); };
 
 /* ============================== 기록·저장 화면 ============================== */
 function renderSaveScreen(){
@@ -2210,7 +2352,7 @@ function renderSaveScreen(){
   $('#cloudId').textContent=cloudId();
 }
 $('#btnSave').onclick=()=>{ SND.click(); renderSaveScreen(); show('save'); };
-$('#btnSaveBack').onclick=()=>{ SND.click(); $('#gemBal').textContent=meta.gems; refreshMapSel(); show('start'); };
+$('#btnSaveBack').onclick=()=>{ SND.click(); syncCurrency(); refreshMapSel(); show('start'); };
 $('#btnCopySave').onclick=()=>{
   const code=$('#saveCode').value;
   const done=()=>{ $('#saveMsg').style.color='#52d273'; $('#saveMsg').textContent='복사되었습니다! 메모장 등에 안전하게 보관하세요'; };
@@ -2270,6 +2412,130 @@ $('#btnCloudDown').onclick=async()=>{
     SND.coin();
   }catch(e){ cloudMsg(false,'클라우드 서버에 연결할 수 없습니다 (Vercel 배포에서만 지원)'); }
 };
+
+/* ============================== 마이페이지 (덱·영구 강화) ============================== */
+function renderMyPage(){
+  $('#myGems').textContent=meta.gems;
+  $('#myGold').textContent=meta.gold;
+  const deck=getDeck();
+  $('#deckCount').textContent=deck.length;
+  // 덱 편성 그리드
+  const dg=$('#deckGrid'); dg.innerHTML='';
+  for(const k of TKEYS){
+    const d=TDEFS[k], owned=hasT(k), inDeck=deck.includes(k);
+    const b=document.createElement('button');
+    b.className='deckCard'+(inDeck?' inDeck':'');
+    b.style.borderColor=inDeck?'':RAR[d.rar][1]+'55';
+    b.innerHTML=`${inDeck?'<span class="badge">✓출전</span>':''}
+      ${portraitImg('tower',k,58,48,owned?'':'filter:grayscale(1) brightness(.5)')}
+      <div class="dn">${d.name}</div>`;
+    b.onclick=()=>{
+      if(!owned){ toast('🛒 상점에서 💎로 해금 후 사용할 수 있습니다'); return; }
+      let nd=getDeck();
+      if(nd.includes(k)){
+        if(nd.length<=1){ toast('덱에는 최소 1개의 타워가 필요합니다'); return; }
+        nd=nd.filter(x=>x!==k);
+      }else{
+        if(nd.length>=6){ toast('덱은 최대 6개 — 다른 타워를 먼저 빼세요'); return; }
+        nd.push(k);
+      }
+      meta.deck=nd; metaSave(); SND.click(); renderMyPage();
+    };
+    dg.appendChild(b);
+  }
+  // 강화 목록
+  const list=$('#towerLvList'); list.innerHTML='';
+  for(const k of TKEYS){
+    const d=TDEFS[k], lv=tlvOf(k), cards=meta.cards[k]|0;
+    const need=upNeedCards(lv), cost=upCostGold(lv);
+    const mul=Math.round((permMulOf(lv)-1)*100);
+    let st;
+    if(k==='bank') st=`수입 ${Math.round(d.income[0]*permMulOf(lv))}/${Math.round(d.income[1]*permMulOf(lv))}/${Math.round(d.income[2]*permMulOf(lv))}`;
+    else if(k==='buff') st=`피해버프 +${Math.round(d.dmgBuff[2]*100)}% (강화 미적용)`;
+    else st=`피해 ${Math.round(d.dmg[0]*permMulOf(lv))}/${Math.round(d.dmg[1]*permMulOf(lv))}/${Math.round(d.dmg[2]*permMulOf(lv))} · 사거리 ${d.range[0]}`;
+    const row=document.createElement('div');
+    row.className='tlvRow';
+    row.innerHTML=`${portraitImg('tower',k,46,46)}
+      <div class="ti">
+        <div class="tn">${d.name} <span class="lvChip">★Lv.${lv}</span> <span style="font-size:10px;color:#52d273">${mul?'+'+mul+'% 피해':''}</span></div>
+        <div class="ts">${st}</div>
+        <div class="cardBar"><div class="fill" style="width:${Math.min(100,cards/need*100)}%"></div>
+        <div class="txt">🎴 ${cards} / ${need}</div></div>
+      </div>`;
+    const btn=document.createElement('button');
+    btn.className='upBtn';
+    btn.innerHTML=`⬆ 강화<br>🪙${cost}`;
+    btn.disabled=cards<need||meta.gold<cost;
+    btn.onclick=()=>{
+      if(meta.cards[k]<need||meta.gold<cost) return;
+      meta.cards[k]-=need; meta.gold-=cost;
+      meta.tlv[k]=lv+1; metaSave();
+      SND.coin(); toast(`${d.name} ★Lv.${lv+1} 달성! 피해 +${Math.round((permMulOf(lv+1)-1)*100)}%`);
+      renderMyPage();
+    };
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+}
+$('#btnMy').onclick=()=>{ SND.click(); renderMyPage(); show('my'); };
+$('#btnMyBack').onclick=()=>{ SND.click(); syncCurrency(); show('start'); };
+
+/* ============================== 일일 상점 ============================== */
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+function shopStateLoad(){
+  let s=null;
+  try{ s=JSON.parse(localStorage.getItem('npd_shop')||'null'); }catch(e){}
+  if(!s||s.d!==todayStr()){ s={d:todayStr(),b:{}}; try{ localStorage.setItem('npd_shop',JSON.stringify(s)); }catch(e){} }
+  return s;
+}
+function shopStateSave(s){ try{ localStorage.setItem('npd_shop',JSON.stringify(s)); }catch(e){} }
+function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function dailySlots(){
+  let h=0; const ds=todayStr();
+  for(let i=0;i<ds.length;i++) h=(h*31+ds.charCodeAt(i))>>>0;
+  const rnd=mulberry(h);
+  const pool=[...TKEYS];
+  for(let i=pool.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+  const discountIdx=1+Math.floor(rnd()*3); // 슬롯 1~3 중 하나 할인
+  const disc=[20,30][Math.floor(rnd()*2)];
+  const slots=[
+    {id:0,kind:'cards',tower:pool[0],n:5,price:0,free:true},
+    {id:1,kind:'cards',tower:pool[1],n:10,price:700},
+    {id:2,kind:'cards',tower:pool[2],n:10,price:700},
+    {id:3,kind:'cards',tower:pool[3],n:10,price:700},
+    {id:4,kind:'gold',n:1200,gem:25},
+    {id:5,kind:'pack',n:30,price:1800},
+  ];
+  const dslot=slots[discountIdx];
+  dslot.disc=disc; dslot.orig=dslot.price;
+  dslot.price=Math.round(dslot.price*(100-disc)/100);
+  return slots;
+}
+function msToMidnight(){
+  const n=new Date(), m=new Date(n); m.setHours(24,0,0,0);
+  const s=Math.floor((m-n)/1000);
+  return Math.floor(s/3600)+'시간 '+Math.floor(s%3600/60)+'분';
+}
+function buySlot(slot){
+  const st=shopStateLoad();
+  if(st.b[slot.id]){ toast('오늘은 이미 구매했습니다'); return; }
+  if(slot.kind==='gold'){
+    if(meta.gems<slot.gem){ toast('💎가 부족합니다'); return; }
+    meta.gems-=slot.gem; meta.gold+=slot.n;
+  }else if(slot.kind==='pack'){
+    if(meta.gold<slot.price){ toast('🪙 골드가 부족합니다'); return; }
+    meta.gold-=slot.price;
+    for(let i=0;i<slot.n;i++){ const k=TKEYS[Math.floor(Math.random()*TKEYS.length)]; meta.cards[k]=(meta.cards[k]|0)+1; }
+  }else{
+    if(slot.price&&meta.gold<slot.price){ toast('🪙 골드가 부족합니다'); return; }
+    meta.gold-=slot.price;
+    meta.cards[slot.tower]=(meta.cards[slot.tower]|0)+slot.n;
+  }
+  metaSave();
+  st.b[slot.id]=1; shopStateSave(st);
+  SND.coin(); toast('구매 완료!');
+  renderShop();
+}
 
 /* ============================== 도감 ============================== */
 function enemyTrait(e){
@@ -2568,7 +2834,7 @@ $('#pcNo').onclick=()=>{ pendingPlace=null; SND.click(); };
 cv.addEventListener('contextmenu',ev=>{ ev.preventDefault(); selectShop(null); });
 window.addEventListener('keydown',ev=>{
   if(screenName!=='game') return;
-  if(ev.key>='1'&&ev.key<='9') selectShop(TKEYS[+ev.key-1]===selShop?null:TKEYS[+ev.key-1]);
+  if(ev.key>='1'&&ev.key<='6'){ const dk=getDeck()[+ev.key-1]; if(dk) selectShop(dk===selShop?null:dk); }
   else if(ev.key==='Escape'){ selectShop(null); selTower=null; pendingPlace=null; syncInfoPanel(); }
   else if(ev.key===' '){ ev.preventDefault(); myActLocal({t:'act',a:'wave'}); }
   else if((ev.key==='u'||ev.key==='U')&&selTower!=null){ const e=myActLocal({t:'act',a:'up',id:selTower}); if(e)toast(e); }
@@ -2603,7 +2869,7 @@ function applyBoardChoice(){
 }
 $('#btnSolo').onclick=()=>{
   net.mode='solo'; net.np=1; net.myPi=0; net.started=true;
-  net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0};
+  net.perks[0]={sm:meta.owned.startMoney?1:0,hp:meta.owned.baseHp?1:0,tlv:meta.tlv};
   applyBoardChoice();
   initWorld(1); enterGame();
 };
@@ -2620,7 +2886,11 @@ $('#bestLine').textContent=loadBest()?`🏅 최고 기록: 웨이브 ${loadBest(
 
 // 부팅 초기화
 metaLoad();
-$('#gemBal').textContent=meta.gems;
+function syncCurrency(){
+  $('#gemBal').textContent=meta.gems;
+  $('#goldBal').textContent=meta.gold;
+}
+syncCurrency();
 refreshMapSel();
 syncMuteBtns();
 
