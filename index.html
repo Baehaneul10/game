@@ -1554,38 +1554,51 @@ function drawTowerArt(g,type,level,ownerCol,aim,time,spec){
   }
   g.restore();
 }
-// 일러스트 스프라이트 타워 (바닥판+소유자 링은 벡터, 본체는 3D 일러스트 빌보드)
+// 일러스트 타워를 3D 게임 말처럼 렌더 (입체 받침대 + 그 위에 서 있는 빌보드 스프라이트 + 그림자)
 function drawTowerSprite(g,t,time){
   const ownerCol=PCOLORS[t.owner]||'#888';
-  // 바닥판 (눕힘)
-  g.save(); g.scale(1,SQ);
-  g.beginPath(); g.ellipse(0,3,18,15,0,0,7); g.fillStyle='rgba(0,0,0,.45)'; g.fill();
-  g.beginPath(); g.arc(0,0,15,0,7);
-  const bg=g.createLinearGradient(0,-15,0,15);
-  bg.addColorStop(0,'#2e3c62'); bg.addColorStop(1,'#111830');
-  g.fillStyle=bg; g.fill();
-  g.strokeStyle='#090d19'; g.lineWidth=1.5; g.stroke();
-  g.beginPath(); g.arc(0,0,17,0,7); g.strokeStyle=ownerCol; g.lineWidth=2.2; g.stroke();
-  if(t.spec){ // 특화 오라
+  const rarCol=RAR[TDEFS[t.type].rar][1];
+  const s=(1+t.level*.08)*(t.spec?1.08:1);
+  const rx=13.5, ry=13.5*SQ, ph=6.5; // 받침대 반경/높이
+  // 바닥 그림자
+  g.beginPath(); g.ellipse(0,4,rx+3,ry+2,0,0,7); g.fillStyle='rgba(0,0,0,.5)'; g.fill();
+  // 받침대 측면 (원기둥 띠)
+  const sg=g.createLinearGradient(-rx,0,rx,0);
+  sg.addColorStop(0,'#151c33'); sg.addColorStop(.5,'#39466e'); sg.addColorStop(1,'#111830');
+  g.fillStyle=sg; g.fillRect(-rx,-ph,rx*2,ph);
+  g.beginPath(); g.ellipse(0,0,rx,ry,0,0,Math.PI); g.fill(); // 앞쪽 하단 라운딩
+  // 받침대 윗면 + 링
+  g.beginPath(); g.ellipse(0,-ph,rx,ry,0,0,7);
+  const tg=g.createRadialGradient(-4,-ph-3,2,0,-ph,rx);
+  tg.addColorStop(0,'#33426b'); tg.addColorStop(1,'#0f1628');
+  g.fillStyle=tg; g.fill();
+  g.beginPath(); g.ellipse(0,-ph,rx,ry,0,0,7); g.strokeStyle=rarCol; g.lineWidth=2; g.stroke();
+  g.beginPath(); g.ellipse(0,-ph,rx+2,ry+1.4,0,0,7);
+  g.globalAlpha=.85; g.strokeStyle=ownerCol; g.lineWidth=1.3; g.stroke(); g.globalAlpha=1;
+  // 특화 오라 (윗면에서 퍼지는 링)
+  if(t.spec){
     const pk=(time%1.4)/1.4;
-    g.globalAlpha=(1-pk)*.55;
-    g.beginPath(); g.arc(0,0,18+pk*8,0,7);
-    g.strokeStyle=SPECCOL[t.spec]; g.lineWidth=2; g.stroke();
-    g.globalAlpha=1;
+    g.globalAlpha=(1-pk)*.6;
+    g.beginPath(); g.ellipse(0,-ph,rx+pk*10,ry+pk*8,0,0,7);
+    g.strokeStyle=SPECCOL[t.spec]; g.lineWidth=2; g.stroke(); g.globalAlpha=1;
   }
-  g.restore();
-  // 본체: 원형 클리핑된 일러스트 (강화·특화 시 커짐)
-  const s=(1+t.level*.09)*(t.spec?1.07:1), R=15*s, cy=-12*s;
-  const img=TOWER_IMGS[t.type];
-  g.save();
-  g.beginPath(); g.arc(0,cy,R,0,7); g.clip();
-  g.drawImage(img,-R,cy-R,R*2,R*2);
-  g.restore();
-  // 링 (등급색 + 소유자색 이중)
-  g.beginPath(); g.arc(0,cy,R,0,7);
-  g.strokeStyle=RAR[TDEFS[t.type].rar][1]; g.lineWidth=2; g.stroke();
-  g.beginPath(); g.arc(0,cy,R+2,0,7);
-  g.strokeStyle=ownerCol; g.lineWidth=1.2; g.globalAlpha=.8; g.stroke(); g.globalAlpha=1;
+  // 받침대 위에 서 있는 3D 모델 (빌보드 스프라이트)
+  const spr=getSprite(t.type);
+  if(spr){
+    const H=46*s, W=H*spr.w/spr.h;
+    // 스프라이트 아래 접지 글로우 (등급색, 그라데이션 — blur 필터 미사용)
+    g.save(); g.translate(0,-ph-1); g.scale(1,SQ);
+    const gg=g.createRadialGradient(0,0,1,0,0,rx*.9);
+    gg.addColorStop(0,rarCol+'88'); gg.addColorStop(1,'transparent');
+    g.beginPath(); g.arc(0,0,rx*.9,0,7); g.fillStyle=gg; g.fill();
+    g.restore();
+    g.drawImage(spr.cv,-W/2,-ph-H+ry+2,W,H);
+  }else{
+    // 스프라이트 미준비 시 원형 클리핑 폴백
+    const R=14*s;
+    g.save(); g.beginPath(); g.arc(0,-ph-R+4,R,0,7); g.clip();
+    g.drawImage(TOWER_IMGS[t.type],-R,-ph-2*R+4,R*2,R*2); g.restore();
+  }
 }
 const AIM=new Map();
 let lastDt=.016;
@@ -1695,6 +1708,30 @@ TKEYS.forEach(k=>{
 function spriteReady(k){
   const im=TOWER_IMGS[k];
   return im&&!im._err&&im.complete&&im.naturalWidth>0;
+}
+// 카드에서 타워 모델만 잘라내 배경을 부드럽게 지운 스프라이트 (빌보드용)
+const TOWER_SPRITES={};
+function getSprite(k){
+  if(TOWER_SPRITES[k]) return TOWER_SPRITES[k];
+  if(!spriteReady(k)) return null;
+  const src=TOWER_IMGS[k], nw=src.naturalWidth, sc=nw/256;
+  // 256px 기준 모델 영역 크롭 (상단 번호/등급 뱃지·프레임 제외, 모델+받침 포함)
+  const CX=52, CY=58, CW=152, CH=158;
+  const SS=2; // 슈퍼샘플
+  const c=document.createElement('canvas'); c.width=CW*SS; c.height=CH*SS;
+  const g=c.getContext('2d');
+  g.imageSmoothingQuality='high';
+  g.drawImage(src, CX*sc, CY*sc, CW*sc, CH*sc, 0,0, CW*SS, CH*SS);
+  // 가장자리 페더링: 중앙 타원만 남기고 배경을 투명하게
+  g.globalCompositeOperation='destination-in';
+  const w=CW*SS, h=CH*SS;
+  g.save(); g.translate(w/2,h*.5); g.scale(1,h/w);
+  const rg=g.createRadialGradient(0,0,w*.20,0,0,w*.56);
+  rg.addColorStop(0,'#000'); rg.addColorStop(.72,'#000'); rg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=rg; g.beginPath(); g.arc(0,0,w*.6,0,7); g.fill();
+  g.restore();
+  g.globalCompositeOperation='source-over';
+  return TOWER_SPRITES[k]={cv:c,w:CW,h:CH};
 }
 function portraitImg(kind,k,w,h,style){
   const fbFn=kind==='tower'?'tpt':'ept';
@@ -2941,7 +2978,7 @@ setInterval(()=>{
 
 // 디버그 훅
 window.NPD={get world(){return world;},net,cState,initWorld,doPlace,doUpgrade,doSpec,doTmode,requestWaveStart,TDEFS,EDEFS,SPECS,placeable,pointAt,get PATHLEN(){return PATHLEN;},meta,metaSave,setPath,loadMaps,SND,awardGems,exportSave,importSave,recordGame,tick:dt=>updateSim(dt),
-fit:fitCanvas,cam:()=>({baseScale,camZ,viewX,viewY,scale,offX,offY}),
+fit:fitCanvas,cam:()=>({baseScale,camZ,viewX,viewY,scale,offX,offY}),render:render,
 tpt:towerPortraitURL,ept:enemyPortraitURL};
 </script>
 </body>
