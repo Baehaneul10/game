@@ -2230,6 +2230,8 @@ $('#btnLoadSave').onclick=()=>{
 };
 
 /* ----- 클라우드 저장 (Vercel /api/cloud — Notion 백엔드) ----- */
+// GitHub Pages 등 다른 도메인에서 플레이할 때도 Vercel API를 사용 (CORS 허용됨)
+const CLOUD_API=location.hostname.endsWith('vercel.app')?'':'https://game-baehaneul10s-projects.vercel.app';
 function cloudId(){
   let id;
   try{ id=localStorage.getItem('npd_cloud_id'); }catch(e){}
@@ -2244,7 +2246,7 @@ function cloudMsg(ok,txt){ const m=$('#saveMsg'); m.style.color=ok?'#52d273':'va
 $('#btnCloudUp').onclick=async()=>{
   SND.click(); cloudMsg(true,'☁️ 업로드 중...');
   try{
-    const r=await fetch('/api/cloud',{method:'POST',headers:{'content-type':'application/json'},
+    const r=await fetch(CLOUD_API+'/api/cloud',{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({id:cloudId(),data:exportSave()})});
     const j=await r.json();
     if(r.ok) cloudMsg(true,`✓ 클라우드 저장 완료! ID: ${cloudId()} — 다른 기기에서 이 ID로 가져오세요`);
@@ -2256,7 +2258,7 @@ $('#btnCloudDown').onclick=async()=>{
   const id=($('#cloudLoadId').value.trim()||cloudId()).toUpperCase();
   cloudMsg(true,'⬇ 가져오는 중...');
   try{
-    const r=await fetch('/api/cloud?id='+encodeURIComponent(id));
+    const r=await fetch(CLOUD_API+'/api/cloud?id='+encodeURIComponent(id));
     const j=await r.json();
     if(!r.ok){ cloudMsg(false,j.error==='NOT_FOUND'?'해당 ID의 저장 데이터가 없습니다':(j.message||'서버 미설정')); return; }
     const err=importSave(j.data);
