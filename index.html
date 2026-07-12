@@ -1583,9 +1583,10 @@ function enemyPortraitURL(k){
   return PORTRAITS['e'+k]=c.toDataURL('image/jpeg',.88);
 }
 // 외부 아트 우선 <img> 생성 (onerror 시 캔버스 초상화로 대체)
+const ART_V=2; // 아트 교체 시 +1 (캐시 무효화)
 function portraitImg(kind,k,w,h,style){
   const fbFn=kind==='tower'?'tpt':'ept';
-  return `<img src="art/${kind}-${k}.jpg" onerror="this.onerror=()=>{this.onerror=null;this.src=NPD.${fbFn}('${k}')};this.src='art/${kind}-${k}.png'" width="${w}" height="${h}" style="object-fit:cover;border-radius:8px;${style||''}" alt="${k}">`;
+  return `<img src="art/${kind}-${k}.jpg?v=${ART_V}" onerror="this.onerror=()=>{this.onerror=null;this.src=NPD.${fbFn}('${k}')};this.src='art/${kind}-${k}.png?v=${ART_V}'" width="${w}" height="${h}" style="object-fit:cover;border-radius:8px;${style||''}" alt="${k}">`;
 }
 
 /* ============================== 렌더링 ============================== */
