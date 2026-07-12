@@ -1518,6 +1518,76 @@ function towerIconURL(k){
   return ICONS[k]=c.toDataURL();
 }
 
+/* ---- 초상화 (카드 UI용 대형 아트) ----
+   art/tower-<키>.jpg|png 또는 art/enemy-<키>.jpg|png 파일이 있으면 그 이미지를 사용하고,
+   없으면 아래 캔버스 초상화로 대체. (외부 일러스트를 폴더에 넣기만 하면 자동 적용) */
+const PORTRAITS={};
+function towerPortraitURL(k){
+  if(PORTRAITS['t'+k]) return PORTRAITS['t'+k];
+  const c=document.createElement('canvas'); c.width=c.height=160;
+  const g=c.getContext('2d');
+  const rr=RAR[TDEFS[k].rar];
+  // 배경: 다크 그라데이션 + 등급색 글로우
+  const bg=g.createLinearGradient(0,0,0,160);
+  bg.addColorStop(0,'#1c2646'); bg.addColorStop(1,'#080b15');
+  g.fillStyle=bg; g.fillRect(0,0,160,160);
+  const gl=g.createRadialGradient(80,66,8,80,66,88);
+  gl.addColorStop(0,rr[1]+'55'); gl.addColorStop(1,'transparent');
+  g.fillStyle=gl; g.fillRect(0,0,160,160);
+  // 반짝이
+  g.fillStyle='rgba(255,255,255,.5)';
+  for(let i=0;i<14;i++){
+    const a=i*2.4, x=80+Math.cos(a*7.9)*(30+i*4), y=40+((i*37)%90);
+    g.fillRect(x,y,i%3?1:2,i%3?1:2);
+  }
+  // 바닥
+  g.fillStyle='rgba(0,0,0,.55)';
+  g.beginPath(); g.ellipse(80,122,54,15,0,0,7); g.fill();
+  // 타워 (3레벨 아트, 링은 등급색)
+  g.save(); g.translate(80,114); g.scale(2.9,2.9);
+  drawTowerArt(g,k,2,rr[1],-2.35,.8);
+  g.restore();
+  return PORTRAITS['t'+k]=c.toDataURL('image/jpeg',.88);
+}
+function enemyPortraitURL(k){
+  if(PORTRAITS['e'+k]) return PORTRAITS['e'+k];
+  const c=document.createElement('canvas'); c.width=c.height=160;
+  const g=c.getContext('2d');
+  const def=EDEFS[k], bc=balloonCols(def.col);
+  const bg=g.createLinearGradient(0,0,0,160);
+  bg.addColorStop(0,'#181f3a'); bg.addColorStop(1,'#070a12');
+  g.fillStyle=bg; g.fillRect(0,0,160,160);
+  const gl=g.createRadialGradient(80,72,8,80,72,90);
+  gl.addColorStop(0,def.col+'44'); gl.addColorStop(1,'transparent');
+  g.fillStyle=gl; g.fillRect(0,0,160,160);
+  // 그림자 + 풍선 본체 (대형)
+  const R=def.boss?44:36;
+  g.fillStyle='rgba(0,0,0,.5)';
+  g.beginPath(); g.ellipse(80,132,R*.9,10,0,0,7); g.fill();
+  g.strokeStyle='rgba(220,230,250,.4)'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(80,70+R); g.quadraticCurveTo(86,110,80,130); g.stroke();
+  const grd=g.createRadialGradient(80-R*.35,70-R*.4,R*.12,80,70,R*1.15);
+  grd.addColorStop(0,bc.l); grd.addColorStop(.55,def.col); grd.addColorStop(1,bc.d);
+  g.beginPath(); g.ellipse(80,70,R*.85,R,0,0,7);
+  g.fillStyle=grd; g.fill();
+  if(def.physResist>=1){ g.strokeStyle='#5f6b80'; g.lineWidth=4; g.stroke(); }
+  if(def.magicResist>=1){ g.strokeStyle='#8fd8ff'; g.lineWidth=3; g.setLineDash([7,7]); g.stroke(); g.setLineDash([]); }
+  g.beginPath(); g.ellipse(80-R*.32,70-R*.4,R*.18,R*.28,-.5,0,7);
+  g.fillStyle='rgba(255,255,255,.6)'; g.fill();
+  if(def.boss){ // 왕관
+    const cy=70-R-8;
+    g.beginPath(); g.moveTo(66,cy); g.lineTo(66,cy-14); g.lineTo(73,cy-6);
+    g.lineTo(80,cy-17); g.lineTo(87,cy-6); g.lineTo(94,cy-14); g.lineTo(94,cy);
+    g.closePath(); g.fillStyle='#ffd94d'; g.fill();
+  }
+  return PORTRAITS['e'+k]=c.toDataURL('image/jpeg',.88);
+}
+// 외부 아트 우선 <img> 생성 (onerror 시 캔버스 초상화로 대체)
+function portraitImg(kind,k,w,h,style){
+  const fbFn=kind==='tower'?'tpt':'ept';
+  return `<img src="art/${kind}-${k}.jpg" onerror="this.onerror=()=>{this.onerror=null;this.src=NPD.${fbFn}('${k}')};this.src='art/${kind}-${k}.png'" width="${w}" height="${h}" style="object-fit:cover;border-radius:8px;${style||''}" alt="${k}">`;
+}
+
 /* ============================== 렌더링 ============================== */
 const cv=$('#cv'), ctx=cv.getContext('2d');
 let scale=1, offX=0, offY=0;
@@ -1927,10 +1997,10 @@ function syncPalette(){
     const head=`<span class="num">${i+1}</span><span class="rr" style="color:${rr[1]}">${rr[0]}</span>`;
     if(!hasT(k)){
       b.classList.add('poor');
-      b.innerHTML=`${head}<div class="ic" style="font-size:24px;line-height:34px">🔒</div><div class="nm">${d.name}</div><div class="co">상점 해금</div>`;
+      b.innerHTML=`${head}<div class="ic" style="position:relative">${portraitImg('tower',k,62,52,'filter:grayscale(1) brightness(.5)')}<span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:20px">🔒</span></div><div class="nm">${d.name}</div><div class="co">상점 해금</div>`;
       b.onclick=()=>toast('🛒 상점에서 💎로 해금할 수 있습니다');
     }else{
-      b.innerHTML=`${head}<div class="ic"><img src="${towerIconURL(k)}" width="34" height="34" alt="${d.name}"></div><div class="nm">${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
+      b.innerHTML=`${head}<div class="ic">${portraitImg('tower',k,62,52)}</div><div class="nm">${d.name}</div><div class="co">💰${d.cost[0]}</div>`;
       b.onclick=()=>{ selectShop(selShop===k?null:k); };
     }
     pal.appendChild(b);
@@ -1957,7 +2027,7 @@ function syncInfoPanel(){
   const specName=t.spec?` <span style="color:${SPECCOL[t.spec]}">★${SPECS[t.type][t.spec].n}</span>`:'';
   const rr=RAR[def.rar];
   const rarChip=`<span style="font-size:10px;border:1px solid ${rr[1]};color:${rr[1]};border-radius:6px;padding:0 4px;vertical-align:2px;margin-right:2px">${rr[0]}</span>`;
-  $('#ipTitle').innerHTML=`<img src="${towerIconURL(t.type)}" width="20" height="20" style="vertical-align:-4px"> ${rarChip}${def.name} Lv.${t.level+1}${specName}`+(mine?'':` (${PNAMES[t.owner]} 소유)`);
+  $('#ipTitle').innerHTML=`${portraitImg('tower',t.type,24,24,'vertical-align:-7px;border-radius:5px')} ${rarChip}${def.name} Lv.${t.level+1}${specName}`+(mine?'':` (${PNAMES[t.owner]} 소유)`);
   let st=(def.dtype==='p'?'⚔️물리 · ':def.dtype==='m'?'🔮마법 · ':'')+(t.spec?SPECS[t.type][t.spec].d:def.desc);
   if(t.type==='laser') st+=` · 초당 ${def.dmg[t.level]}`;
   else if(def.dmg[t.level]) st+=` · 피해 ${def.dmg[t.level]}`;
@@ -2104,8 +2174,8 @@ function renderShop(){
     const owned=!!meta.owned[it.id];
     const card=document.createElement('div'); card.className='shopCard';
     const icon=it.kind==='tower'
-      ? `<img src="${towerIconURL(it.id)}" width="44" height="44">`
-      : `<div style="font-size:28px;width:44px;text-align:center">${it.id==='startMoney'?'💰':'❤️'}</div>`;
+      ? portraitImg('tower',it.id,52,52)
+      : `<div style="font-size:28px;width:52px;text-align:center">${it.id==='startMoney'?'💰':'❤️'}</div>`;
     card.innerHTML=`${icon}<div class="inf"><div class="nm">${it.name}</div><div class="ds">${it.desc}</div></div>`;
     const btn=document.createElement('button');
     if(owned){ btn.textContent='보유중 ✓'; btn.className='owned'; btn.disabled=true; }
@@ -2215,7 +2285,7 @@ function renderHelp(){
   for(const k of TKEYS){
     const d=TDEFS[k], s=SPECS[k], rr=RAR[d.rar];
     const dt=d.dtype==='p'?'⚔️물리':d.dtype==='m'?'🔮마법':'🛠️지원';
-    html+=`<div class="helpRow" style="border-left:3px solid ${rr[1]}"><img src="${towerIconURL(k)}" width="40" height="40">
+    html+=`<div class="helpRow" style="border-left:3px solid ${rr[1]}">${portraitImg('tower',k,56,56)}
       <div class="hb"><div class="hn"><span style="color:${rr[1]};font-size:10px">${rr[0]}</span> ${d.name} <span style="color:#ffd94d">💰${d.cost[0]}</span> <span style="color:var(--dim);font-size:10.5px">${dt}</span>${d.lock?' <span style="color:#b28dff">🛒해금</span>':''}</div>
       <div class="hd">${d.desc}</div>
       <div class="hs"><span style="color:#ffb347">⚡${s.a.n}</span> ${s.a.d} · <span style="color:#b06cff">🌀${s.b.n}</span> ${s.b.d}</div></div></div>`;
@@ -2223,7 +2293,7 @@ function renderHelp(){
   html+='<div class="helpSec">👾 몬스터</div>';
   for(const k of EKEYS){
     const e=EDEFS[k];
-    html+=`<div class="helpRow"><div class="eDot" style="background:${e.col}"></div>
+    html+=`<div class="helpRow" style="border-left:3px solid ${e.col}">${portraitImg('enemy',k,56,56)}
       <div class="hb"><div class="hn">${e.name} <span style="color:var(--dim);font-size:10.5px">[${e.trait}]</span></div>
       <div class="hd">${enemyTrait(e)} · 체력 ${e.hp} · 새는 목숨 ${e.dmg}</div></div></div>`;
   }
@@ -2597,7 +2667,8 @@ setInterval(()=>{
 
 // 디버그 훅
 window.NPD={get world(){return world;},net,cState,initWorld,doPlace,doUpgrade,doSpec,doTmode,requestWaveStart,TDEFS,EDEFS,SPECS,placeable,pointAt,get PATHLEN(){return PATHLEN;},meta,metaSave,setPath,loadMaps,SND,awardGems,exportSave,importSave,recordGame,tick:dt=>updateSim(dt),
-fit:fitCanvas,cam:()=>({baseScale,camZ,viewX,viewY,scale,offX,offY})};
+fit:fitCanvas,cam:()=>({baseScale,camZ,viewX,viewY,scale,offX,offY}),
+tpt:towerPortraitURL,ept:enemyPortraitURL};
 </script>
 </body>
 </html>
