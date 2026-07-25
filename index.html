@@ -661,8 +661,8 @@ function waveGroups(n){
   return g;
 }
 function hpMul(w,np){
-  // 초반 완만 → 15웨이브부터 가속 (전략 다양화 시간 확보 후 강해짐)
-  let m=(1+(w-1)*.095+Math.max(0,w-15)*.04)*(1+(np-1)*.25);
+  // 초반 완만 → 15웨이브부터 가속. 멀티는 인원수 배수(1.5^인원-1)로 강해짐
+  let m=(1+(w-1)*.10+Math.max(0,w-15)*.05)*Math.pow(1.5,np-1);
   if(w>30) m*=Math.pow(1.14,w-30); // 무한 모드: 지수 스케일링
   return m;
 }
@@ -890,6 +890,7 @@ function updateSim(dt){
         }
       }else{
         if(p.dot&&!EDEFS[e.type].psnImmune) e.psn={dps:p.dot,t:p.dotDur,sp:p.dotSp?1:0}; // 중독 (갱신)
+        effects.push({kind:'spark',x:ep.x,y:ep.y,t:0,dur:.16,col:p.kind==='poison'?'#8de65a':(p.kind==='sniper'?'#ffe696':'#c9a6ff')});
         damageEnemy(e,p.dmg,p.dtype);
         if(p.pierce>0){ // 관통 다트: 다음 적으로 이어짐
           p.pierce--;
@@ -965,7 +966,10 @@ function spawnEnemyAt(type,d){
 function spawnEnemy(type){ spawnEnemyAt(type,0); }
 function beginWave(){
   world.phase='wave';
-  world.spawn={groups:waveGroups(world.wave),gi:0,ci:0,timer:.5};
+  // 멀티: 인원수당 적 물량 +25% (체력 배수와 별개로 물량 압박)
+  const cm=1+.25*(world.np-1);
+  const groups=waveGroups(world.wave).map(g=>({...g,count:Math.max(1,Math.round(g.count*cm))}));
+  world.spawn={groups,gi:0,ci:0,timer:.5};
 }
 function waveCleared(){
   const w=world;
@@ -1055,6 +1059,7 @@ function doSpec(pi,id,which){
   if(w.money[pi]<c) return '돈이 부족합니다';
   w.money[pi]-=c; t.spent+=c; t.spec=which;
   recomputeBuffs(); w.twDirty=true;
+  emitFx(['bd',t.x,t.y,pi]); // 특화 펄스
   return null;
 }
 function doTmode(pi,id){
@@ -1074,6 +1079,7 @@ function doUpgrade(pi,id){
   if(w.money[pi]<c) return '돈이 부족합니다';
   w.money[pi]-=c; t.spent+=c; t.level++;
   recomputeBuffs(); w.twDirty=true;
+  emitFx(['bd',t.x,t.y,pi]); // 강화 펄스 (외형 변신 강조)
   return null;
 }
 function doSell(pi,id){
@@ -1326,7 +1332,10 @@ function updateClient(dt){
     const p=cState.projs[i], e=emap.get(p.eid);
     if(!e){ cState.projs.splice(i,1); continue; }
     const dd=dist(p.x,p.y,e.x,e.y), step=p.spd*dt;
-    if(dd<=step+8){ cState.projs.splice(i,1); continue; }
+    if(dd<=step+8){
+      effects.push({kind:'spark',x:e.x,y:e.y,t:0,dur:.16,col:p.kind==='poison'?'#8de65a':(p.kind==='sniper'?'#ffe696':'#c9a6ff')});
+      cState.projs.splice(i,1); continue;
+    }
     p.x+=(e.x-p.x)/dd*step; p.y+=(e.y-p.y)/dd*step;
   }
   updateEffects(dt);
@@ -1594,6 +1603,21 @@ function drawTowerSprite(g,t,time,aim){
     gg.addColorStop(0,rarCol+'88'); gg.addColorStop(1,'transparent');
     g.beginPath(); g.arc(0,0,rx*.9,0,7); g.fillStyle=gg; g.fill();
     g.restore();
+    // ---- 강화 티어 장식 (레벨이 오르면 눈에 띄게 변신) ----
+    // 2강+: 받침대 골드 트림 티어
+    if(t.level>=1){
+      g.beginPath(); g.ellipse(0,-ph+2.5,rx*1.06,ry*1.06,0,0,7);
+      g.strokeStyle=t.level>=2?'#ffd94d':'#c8d2e4'; g.lineWidth=1.6; g.stroke();
+    }
+    // 3강: 모델 뒤 펄스 후광 (등급색)
+    if(t.level>=2){
+      const hp2=.5+.25*Math.sin(time*3+t.id);
+      g.save(); g.translate(0,-ph-H*.45);
+      const hg=g.createRadialGradient(0,0,2,0,0,H*.62);
+      hg.addColorStop(0,rarCol+'66'); hg.addColorStop(.6,rarCol+'2a'); hg.addColorStop(1,'transparent');
+      g.globalAlpha=hp2; g.beginPath(); g.arc(0,0,H*.62,0,7); g.fillStyle=hg; g.fill();
+      g.globalAlpha=1; g.restore();
+    }
     // 반응 계산: 발사 반동(0.22초)·조준 방향
     const ft=FIRE.get(t.id);
     const rec=ft!=null?Math.max(0,1-(time-ft)/.22):0;      // 1→0 반동
@@ -1608,6 +1632,21 @@ function drawTowerSprite(g,t,time,aim){
     g.scale(flip*idle*(1+rec*.05), idle*(1-rec*.1));        // 반전+숨쉬기+반동 스쿼시
     g.drawImage(spr.cv,-W/2,-H+2,W,H);
     g.restore();
+    // 강화 궤도 오브: 레벨당 2개, 모델 주위를 공전 (앞뒤 원근)
+    if(t.level>=1){
+      const orbs=t.level*2, oR=rx+4.5;
+      for(let i=0;i<orbs;i++){
+        const oa=time*1.8+i*Math.PI*2/orbs+t.id;
+        const depth=Math.sin(oa);                           // -1 뒤 ~ 1 앞
+        const ox=Math.cos(oa)*oR, oy=-ph-H*.28+depth*ry*.8;
+        const or2=(1.4+.6*Math.max(0,depth))* (t.level>=2?1.2:1);
+        g.globalAlpha=.55+.35*Math.max(0,depth);
+        const og=g.createRadialGradient(ox,oy,.3,ox,oy,or2*2.2);
+        og.addColorStop(0,'#fff'); og.addColorStop(.4,rarCol); og.addColorStop(1,'transparent');
+        g.beginPath(); g.arc(ox,oy,or2*2.2,0,7); g.fillStyle=og; g.fill();
+        g.globalAlpha=1;
+      }
+    }
     // 총구 섬광 (발사 직후)
     if(rec>.35&&attacker){
       const mx=Math.cos(aim)*13, my=-ph-H*.45+Math.sin(aim)*8*SQ;
@@ -1968,40 +2007,67 @@ function render(){
     const tgt=emap2.get(p.eid);
     const ang=tgt?Math.atan2((projY(tgt.y)-BAL_ALT)-py,tgt.x-p.x):0;
     ctx.save(); ctx.translate(p.x,py); ctx.rotate(ang);
+    ctx.globalCompositeOperation='lighter'; // 가산 발광 (에너지 탄환 느낌)
     if(p.kind==='bomb'){
-      // 회전하는 폭탄 + 불꽃 트레일
-      const tr=ctx.createLinearGradient(-16,0,0,0);
-      tr.addColorStop(0,'rgba(255,140,58,0)'); tr.addColorStop(1,'rgba(255,180,80,.7)');
-      ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(-4,-3); ctx.lineTo(-4,3); ctx.closePath();
+      // 회전하는 철갑 폭탄 + 붉은 코어 + 화염·연기 트레일
+      ctx.globalCompositeOperation='source-over';
+      ctx.fillStyle='rgba(90,90,100,.35)';
+      ctx.beginPath(); ctx.arc(-15,1.5,2.6,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-21,-1,1.8,0,7); ctx.fill();
+      ctx.globalCompositeOperation='lighter';
+      const tr=ctx.createLinearGradient(-20,0,-3,0);
+      tr.addColorStop(0,'rgba(255,140,58,0)'); tr.addColorStop(1,'rgba(255,190,90,.9)');
+      ctx.beginPath(); ctx.moveTo(-20,0); ctx.lineTo(-3,-4); ctx.lineTo(-3,4); ctx.closePath();
       ctx.fillStyle=tr; ctx.fill();
+      ctx.globalCompositeOperation='source-over';
       ctx.save(); ctx.rotate(tnow*9);
-      ctx.beginPath(); ctx.arc(0,0,5,0,7); ctx.fillStyle='#2b3350'; ctx.fill();
-      ctx.strokeStyle='#ff8c3a'; ctx.lineWidth=1.5; ctx.stroke();
-      ctx.fillStyle='#ffd94d'; ctx.fillRect(3,-1,3,2);
+      ctx.beginPath(); ctx.arc(0,0,6.2,0,7); ctx.fillStyle='#23262e'; ctx.fill();
+      ctx.strokeStyle='#4a4f5c'; ctx.lineWidth=1.4; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,2.6,0,7);
+      const bc2=ctx.createRadialGradient(0,0,.3,0,0,2.8);
+      bc2.addColorStop(0,'#ffdd66'); bc2.addColorStop(1,'#ff4422');
+      ctx.fillStyle=bc2; ctx.fill();
       ctx.restore();
     }else if(p.kind==='sniper'){
-      // 긴 저격 트레이서
-      const tr=ctx.createLinearGradient(-22,0,6,0);
-      tr.addColorStop(0,'rgba(255,255,255,0)'); tr.addColorStop(1,'rgba(255,255,255,.95)');
-      ctx.strokeStyle=tr; ctx.lineWidth=2.2;
-      ctx.beginPath(); ctx.moveTo(-22,0); ctx.lineTo(6,0); ctx.stroke();
-      ctx.beginPath(); ctx.arc(5,0,2.4,0,7); ctx.fillStyle='#fff'; ctx.fill();
+      // 레일건 트레이서: 외곽 글로우 + 백색 코어
+      const tr=ctx.createLinearGradient(-30,0,8,0);
+      tr.addColorStop(0,'rgba(255,220,120,0)'); tr.addColorStop(1,'rgba(255,220,120,.85)');
+      ctx.strokeStyle=tr; ctx.lineWidth=5;
+      ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(6,0); ctx.stroke();
+      const tc=ctx.createLinearGradient(-26,0,8,0);
+      tc.addColorStop(0,'rgba(255,255,255,0)'); tc.addColorStop(1,'#fff');
+      ctx.strokeStyle=tc; ctx.lineWidth=1.8;
+      ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(7,0); ctx.stroke();
+      const hd=ctx.createRadialGradient(6,0,.3,6,0,5);
+      hd.addColorStop(0,'#fff'); hd.addColorStop(.5,'rgba(255,230,150,.8)'); hd.addColorStop(1,'transparent');
+      ctx.beginPath(); ctx.arc(6,0,5,0,7); ctx.fillStyle=hd; ctx.fill();
     }else if(p.kind==='poison'){
-      // 독 글롭 + 방울 트레일
-      ctx.fillStyle='rgba(125,223,100,.45)';
-      ctx.beginPath(); ctx.arc(-8,1,1.8,0,7); ctx.fill();
-      ctx.beginPath(); ctx.arc(-13,-1,1.2,0,7); ctx.fill();
-      const pg=ctx.createRadialGradient(-1,-1,.5,0,0,4.5);
-      pg.addColorStop(0,'#d6ffb8'); pg.addColorStop(1,'#4faa33');
-      ctx.beginPath(); ctx.ellipse(0,0,5,3.8,0,0,7); ctx.fillStyle=pg; ctx.fill();
+      // 끓는 독 구체 + 산성 방울 트레일
+      ctx.fillStyle='rgba(125,223,100,.5)';
+      ctx.beginPath(); ctx.arc(-9,1.5,2.2,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-15,-1.5,1.5,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-20,.5,1,0,7); ctx.fill();
+      const pg=ctx.createRadialGradient(-1.5,-1.5,.5,0,0,6);
+      pg.addColorStop(0,'#eaffd0'); pg.addColorStop(.5,'#8de65a'); pg.addColorStop(1,'#2d7a1f');
+      ctx.beginPath(); ctx.ellipse(0,0,6,4.6,0,0,7); ctx.fillStyle=pg; ctx.fill();
+      const bub=(tnow*6)%1;
+      ctx.beginPath(); ctx.arc(1.5,-2-bub*3,1.2*(1-bub),0,7);
+      ctx.fillStyle=`rgba(214,255,184,${1-bub})`; ctx.fill();
     }else{
-      // 다트: 화살 모양 볼트 + 글로우 트레일
-      const tr=ctx.createLinearGradient(-14,0,0,0);
-      tr.addColorStop(0,'rgba(56,225,198,0)'); tr.addColorStop(1,'rgba(56,225,198,.8)');
-      ctx.strokeStyle=tr; ctx.lineWidth=2.4;
-      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(0,0); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-2,-2.6); ctx.lineTo(-2,2.6); ctx.closePath();
-      ctx.fillStyle='#7ef5df'; ctx.fill();
+      // 팬텀 스팅어: 보라 유령 스파이크 + 잔상 트레일 (일러스트와 동일 계열)
+      for(let a2=2;a2>=0;a2--){ // 잔상 3겹
+        ctx.globalAlpha=[.9,.4,.18][a2];
+        const off=-a2*6;
+        const sg=ctx.createLinearGradient(off-8,0,off+8,0);
+        sg.addColorStop(0,'rgba(120,60,220,0)'); sg.addColorStop(.6,'#a163ff'); sg.addColorStop(1,'#e9d5ff');
+        ctx.beginPath();
+        ctx.moveTo(off+9,0); ctx.lineTo(off-3,-3.2); ctx.lineTo(off-7,0); ctx.lineTo(off-3,3.2);
+        ctx.closePath(); ctx.fillStyle=sg; ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      const hd=ctx.createRadialGradient(8,0,.3,8,0,4);
+      hd.addColorStop(0,'#fff'); hd.addColorStop(1,'transparent');
+      ctx.beginPath(); ctx.arc(8,0,4,0,7); ctx.fillStyle=hd; ctx.fill();
     }
     ctx.restore();
   }
@@ -2045,6 +2111,16 @@ function render(){
       ctx.font='bold 15px sans-serif'; ctx.textAlign='center';
       ctx.fillStyle=`rgba(255,80,80,${1-k})`;
       ctx.fillText('3×!',f.x,projY(f.y)-BAL_ALT-10-k*20);
+    }else if(f.kind==='spark'){ // 타격 스파크 (십자 광선)
+      const sy=projY(f.y)-BAL_ALT, sk=1-k;
+      ctx.save(); ctx.translate(f.x,sy); ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle=f.col||'#fff'; ctx.globalAlpha=sk; ctx.lineWidth=1.6;
+      const L=3+k*7;
+      ctx.beginPath();
+      ctx.moveTo(-L,0); ctx.lineTo(L,0); ctx.moveTo(0,-L); ctx.lineTo(0,L);
+      ctx.moveTo(-L*.6,-L*.6); ctx.lineTo(L*.6,L*.6); ctx.moveTo(L*.6,-L*.6); ctx.lineTo(-L*.6,L*.6);
+      ctx.stroke();
+      ctx.restore();
     }else if(f.kind==='build'){ // 설치 완료 펄스 (바닥 링 2겹)
       ctx.save(); ctx.translate(0,TOPPAD); ctx.scale(1,SQ);
       ctx.globalAlpha=1-k;
