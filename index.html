@@ -637,7 +637,7 @@ const SND=(()=>{
 })();
 const PCOLORS=['#38e1c6','#ffb347','#ff6bcb','#6b9bff'];
 const PNAMES=['P1','P2','P3','P4'];
-const SPLIT=[1,.6,.45,.38];      // 인원수별 처치 보상 배율(1인당)
+const SPLIT=[1,.7,.55,.45];      // 인원수별 처치 보상 배율(1인당) — 멀티 배수 난이도에 맞춰 상향
 const MAXWAVE=30;
 
 function waveGroups(n){
@@ -691,7 +691,7 @@ function initWorld(np){
   for(let pi=0;pi<np;pi++) if(net.perks&&net.perks[pi]&&net.perks[pi].sm) world.money[pi]+=100;
   if(net.perks&&net.perks[0]&&net.perks[0].hp) world.lives+=25;
   effects=[]; selShop=null; selTower=null; flash=0; sessionGems=0; sessionGold=0; sessionRecorded=false;
-  if(typeof AIM!=='undefined') AIM.clear();
+  if(typeof AIM!=='undefined'){ AIM.clear(); FIRE.clear(); }
 }
 
 /* ============================== 시뮬레이션 (호스트/솔로) ============================== */
@@ -1254,14 +1254,14 @@ function handleHostMsg(d){
       if(d.map) setPath(d.map);
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
       cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionGold=0; sessionRecorded=false;
-      effects=[]; selShop=null; selTower=null; AIM.clear();
+      effects=[]; selShop=null; selTower=null; AIM.clear(); FIRE.clear();
       enterGame(); break;
     case 's': clientSnapshot(d); break;
     case 'no': toast(d.m); break;
     case 'reset':
       cState.snapA=cState.snapB=null; cState.towers=[]; cState.projs=[]; cState.data=null;
       cState.lastWave=1; cState.lastPhase='prep'; sessionGems=0; sessionGold=0; sessionRecorded=false;
-      effects=[]; selShop=null; selTower=null; AIM.clear(); hideOverlay(); syncPalette(); break;
+      effects=[]; selShop=null; selTower=null; AIM.clear(); FIRE.clear(); hideOverlay(); syncPalette(); break;
     case 'cont': hideOverlay(); break;
   }
 }
@@ -2252,9 +2252,14 @@ function syncHUD(force){
     if(hudCache.pvWave!==wave){
       hudCache.pvWave=wave;
       const agg={};
-      for(const g of waveGroups(wave)) agg[g.type]=(agg[g.type]||0)+g.count;
+      const cm=1+.25*((net.np||1)-1);
+      for(const g of waveGroups(wave)) agg[g.type]=(agg[g.type]||0)+Math.max(1,Math.round(g.count*cm));
       let html='<b>다음 웨이브</b>';
-      for(const ty in agg) html+=`<span><span class="pvDot" style="background:${EDEFS[ty].col}"></span>×${agg[ty]}</span>`;
+      for(const ty in agg){
+        const d2=EDEFS[ty];
+        const mark=d2.physResist>=1?'<b style="color:#9aa7bd">⛨</b>':(d2.magicResist>=1?'<b style="color:#8fd8ff">✦</b>':'');
+        html+=`<span><span class="pvDot" style="background:${d2.col}"></span>×${agg[ty]}${mark}</span>`;
+      }
       pv.innerHTML=html;
     }
     pv.classList.add('on');
@@ -2440,6 +2445,14 @@ function enterGame(){
   hideOverlay(); syncPalette();
   hudCache.pchips=null; ipCache='';
   $('#hPlayers').innerHTML='';
+  // 첫 플레이 온보딩 (1회만)
+  try{
+    if(!localStorage.getItem('npd_seen')){
+      localStorage.setItem('npd_seen','1');
+      toast('아래 카드에서 타워를 골라 길 옆에 설치하세요!',3500);
+      setTimeout(()=>{ if(screenName==='game') toast('⛨물리면역·✦마법면역 몬스터는 반대 타입 타워로! (❓도감 참고)',4000); },4000);
+    }
+  }catch(e){}
 }
 function beginHostGame(){
   net.started=true;
@@ -3029,7 +3042,19 @@ $('#btnMute0').onclick=()=>{ SND.toggle(); syncMuteBtns(); };
 document.addEventListener('pointerdown',()=>SND.unlock());
 $('#btnUp').onclick=()=>{ if(selTower==null)return; const e=myActLocal({t:'act',a:'up',id:selTower}); if(e)toast(e); ipCache=''; };
 $('#btnTmode').onclick=()=>{ if(selTower==null)return; SND.click(); const e=myActLocal({t:'act',a:'tmode',id:selTower}); if(e)toast(e); ipCache=''; };
-$('#btnSell').onclick=()=>{ if(selTower==null)return; const e=myActLocal({t:'act',a:'sell',id:selTower}); if(e)toast(e); selTower=null; syncInfoPanel(); };
+let sellArmed=0, sellArmedId=null;
+$('#btnSell').onclick=()=>{
+  if(selTower==null)return;
+  // 실수 방지: 2초 안에 한 번 더 눌러야 판매 확정
+  if(sellArmedId!==selTower||Date.now()-sellArmed>2000){
+    sellArmed=Date.now(); sellArmedId=selTower;
+    toast('한 번 더 누르면 판매됩니다 (환불 70%)',2000);
+    return;
+  }
+  const e=myActLocal({t:'act',a:'sell',id:selTower});
+  if(e)toast(e);
+  selTower=null; sellArmedId=null; syncInfoPanel();
+};
 $('#btnClose').onclick=()=>{ selTower=null; syncInfoPanel(); };
 
 /* ----- 시작/로비 버튼 ----- */
